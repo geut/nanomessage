@@ -1,0 +1,64 @@
+{
+  "name": "@geut/abstract-request",
+  "version": "1.0.0",
+  "description": "Template to create modules following the Geut path",
+  "main": "index.js",
+  "files": [
+    "lib",
+    "bin",
+    "index.js"
+  ],
+  "scripts": {
+    "start": "node index.js",
+    "test": "jest --passWithNoTests",
+    "posttest": "npm run lint",
+    "lint": "xd-ns \"**/*.js\"",
+    "version": "chan release ${npm_package_version} && git add .",
+    "prepublishOnly": "npm test"
+  },
+  "dependencies": {
+    "buffer-json-encoding": "^1.0.2",
+    "codecs": "^2.0.0",
+    "custom-error-class": "^1.0.0",
+    "hyperid": "^2.0.2"
+  },
+  "devDependencies": {
+    "@geut/chan": "^2.0.0",
+    "@geut/xd": "^1.5.0",
+    "duplexify": "^4.1.1",
+    "jest": "^24.8.0",
+    "pump": "^3.0.0",
+    "standard": "^14.3.1",
+    "through2": "^3.0.1"
+  },
+  "jest": {
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
+  },
+  "standard": {
+    "env": [
+      "jest",
+      "node",
+      "browser"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/geut/abstract-request.git"
+  },
+  "keywords": [
+    "create",
+    "geut",
+    "module"
+  ],
+  "author": {
+    "name": "GEUT",
+    "email": "contact@geutstudio.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/geut/abstract-request/issues"
+  },
+  "homepage": "https://github.com/geut/abstract-request#readme"
+}
