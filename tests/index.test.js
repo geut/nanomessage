@@ -1,7 +1,7 @@
 const through = require('through2')
 const duplexify = require('duplexify')
 
-const { createFromSocket } = require('..')
+const { createFromSocket, symbols: { _requests } } = require('..')
 
 const createConnection = (aliceOpts = {}, bobOpts = {}) => {
   const t1 = through()
@@ -52,29 +52,29 @@ test('timeout', async () => {
 test('automatic cleanup requests', async () => {
   const { bob } = createConnection()
 
-  expect(bob._requests.size).toBe(0)
+  expect(bob[_requests].size).toBe(0)
 
   const ten = Array.from(Array(10).keys()).map(() => bob.request('message'))
 
-  expect(bob._requests.size).toBe(10)
+  expect(bob[_requests].size).toBe(10)
 
   await Promise.all(ten)
 
-  expect(bob._requests.size).toBe(0)
+  expect(bob[_requests].size).toBe(0)
 })
 
-test('close ar', async () => {
+test('close', async () => {
   const { bob } = createConnection(
     { onmessage: () => new Promise(resolve => setTimeout(resolve, 1000)) }
   )
 
-  const finish = expect(bob.request('message')).rejects.toThrow('AbstractRequest close.')
+  const finish = expect(bob.request('message')).rejects.toThrow('Nanomessage close.')
 
-  expect(bob._requests.size).toBe(1)
+  expect(bob[_requests].size).toBe(1)
 
   setTimeout(() => bob.close(), 1)
 
   await finish
 
-  expect(bob._requests.size).toBe(0)
+  expect(bob[_requests].size).toBe(0)
 })

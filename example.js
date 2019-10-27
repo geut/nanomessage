@@ -1,11 +1,19 @@
-const net = require('./net')
+const through = require('through2')
+const duplexify = require('duplexify')
 
-net.createServer(ar => {
-  ar.setMessageHandler(data => {
+const { createFromSocket } = require('.')
+const t1 = through()
+const t2 = through()
+
+// Alice
+createFromSocket(duplexify(t1, t2), {
+  onmessage: data => {
     return 'pong from alice!'
-  })
-}).listen(3000)
-const bob = net.createConnection(3000)
+  }
+})
+
+// Bob
+const bob = createFromSocket(duplexify(t2, t1))
 
 ;(async () => {
   console.log(await bob.request('ping from bob!'))

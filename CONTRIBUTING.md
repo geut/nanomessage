@@ -1,4 +1,4 @@
-# Contributing to abstract-request
+# Contributing to nanomessage
 
 ## Issue Contributions
 
@@ -13,13 +13,13 @@ This document will guide you through the contribution process.
 
 ### Step 1: Fork
 
-Fork the project [on GitHub](https://github.com/geut/abstract-request) and check out your copy locally.
+Fork the project [on GitHub](https://github.com/geut/nanomessage) and check out your copy locally.
 
 ```bash
-$ git clone git@github.com:username/abstract-request.git
-$ cd abstract-request
+$ git clone git@github.com:username/nanomessage.git
+$ cd nanomessage
 $ npm install
-$ git remote add upstream git://github.com/geut/abstract-request.git
+$ git remote add upstream git://github.com/geut/nanomessage.git
 ```
 
 ### Step 2: Branch

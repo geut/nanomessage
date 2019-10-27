@@ -1,19 +1,25 @@
 const hyperid = require('hyperid')()
-const codec = require('buffer-json-encoding')
 
-const { TimeoutError, NotRequestError, ResponseError, CloseError } = require('./errors')
+const defaultCodec = require('./codec')
+const { TimeoutError, EncodeError, DecodeError, ResponseError, CloseError } = require('./errors')
 
-const encode = (id, data, initiator) => ({ _arId: id, _arData: data, _arInitiator: initiator })
+const _requests = Symbol('requests')
+const _timeout = Symbol('timeout')
+const _init = Symbol('init')
+const _subscription = Symbol('subscription')
+const _codec = Symbol('codec')
+const _encode = Symbol('encode')
+const _decode = Symbol('decode')
 
 class Request {
   constructor (data, timeout) {
     this.id = hyperid()
-    this.requestEncoded = encode(this.id, data, true)
+    this.data = data
     this.promise = new Promise((resolve, reject) => {
       this._resolve = resolve
       this._reject = reject
       this.timer = setTimeout(() => {
-        reject(new TimeoutError(this.requestEncoded))
+        reject(new TimeoutError(null, { timeout, id: this.id, data: this.data }))
       }, timeout)
     })
   }
@@ -28,102 +34,112 @@ class Request {
   }
 }
 
-class AbstractRequest {
-  static isRequest (request = {}) {
-    return request._arId
+class Nanomessage {
+  static isRequest (request) {
+    return typeof request === 'object' && request._nmId
   }
 
-  constructor (middleware, options = {}) {
-    console.assert(middleware)
-    console.assert(middleware.send)
-    console.assert(middleware.subscribe)
+  constructor (opts = {}) {
+    const { send, subscribe, onmessage, timeout = 10 * 1000, codec = defaultCodec } = opts
 
-    const { send, onmessage, subscribe } = middleware
-    const { timeout = 10 * 1000 } = options
-
-    this._send = async (...args) => send(...args)
-    this._subscribe = (...args) => subscribe(...args)
-    this._timeout = timeout
-    this._requests = new Map()
+    if (send) this._send = send
+    if (subscribe) this._subscribe = subscribe
     this.setMessageHandler(onmessage)
 
-    this._init()
+    this[_timeout] = timeout
+    this[_requests] = new Map()
+    this[_codec] = codec
+
+    this[_init]()
   }
 
   close () {
-    this._subscription()
+    this[_subscription]()
 
-    this._requests.forEach(request => {
+    this[_requests].forEach(request => {
       request.clear()
-      request._reject(new CloseError(request.id))
+      request._reject(new CloseError(null, { id: request.id }))
     })
 
-    this._requests.clear()
+    this[_requests].clear()
   }
 
   async request (data) {
-    const request = new Request(data, this._timeout)
-    this._requests.set(request.id, request)
+    const request = new Request(data, this[_timeout])
+    this[_requests].set(request.id, request)
 
     try {
-      await this._send(request.requestEncoded)
+      await this._send(this[_encode](request.id, request.data, 0))
       const data = await request.promise
       request.clear()
-      this._requests.delete(request.id)
+      this[_requests].delete(request.id)
       return data
     } catch (err) {
       request.clear()
-      this._requests.delete(request.id)
+      this[_requests].delete(request.id)
       throw err
     }
   }
 
-  setMessageHandler (onmessage = () => {}) {
-    this._onmessage = async (...args) => onmessage(...args)
+  setMessageHandler (cb = () => {}) {
+    this._onmessage = cb
   }
 
-  _init () {
-    this._subscription = this._subscribe(async request => {
-      if (!AbstractRequest.isRequest(request)) throw new NotRequestError(request)
+  [_init] () {
+    this[_subscription] = this._subscribe(async message => {
+      const { nmId, nmData, nmAck } = this[_decode](message)
 
-      const { _arId, _arData, _arInitiator } = request
+      if (nmAck) {
+        const request = this[_requests].get(nmId)
+        if (request) request.resolve(nmData)
+        return
+      }
 
       try {
-        if (_arInitiator) {
-          const data = await this._onmessage(_arData)
-          await this._send(encode(_arId, data, false))
-        }
+        const data = await this._onmessage(nmData)
+        await this._send(this[_encode](nmId, data, 1))
       } catch (err) {
-        throw new ResponseError(_arId, err)
-      }
-
-      request = this._requests.get(_arId)
-      if (request) {
-        request.resolve(_arData)
+        throw new ResponseError(nmId, err)
       }
     }) || (() => {})
+  }
+
+  [_encode] (id, data, ack) {
+    try {
+      if (!id) throw new Error('The nmId is required.')
+      const chunk = this[_codec].encode({ nmId: id, nmData: data, nmAck: ack })
+      return chunk
+    } catch (err) {
+      throw new EncodeError(err.message, { id, data, ack })
+    }
+  }
+
+  [_decode] (message) {
+    try {
+      const request = this[_codec].decode(message)
+      if (!request.nmId) throw new Error('The nmId is required.')
+      return request
+    } catch (err) {
+      throw new DecodeError(err.message, { message })
+    }
   }
 }
 
 function createFromSocket (socket, options = {}) {
-  const onmessage = options.onmessage
-  delete options.onmessage
-
-  const ar = new AbstractRequest({
+  const ar = new Nanomessage(Object.assign({
     subscribe (ondata) {
       socket.on('data', async (data) => {
         try {
-          await ondata(codec.decode(data))
+          await ondata(data)
         } catch (err) {
           console.log(err)
         }
       })
     },
-    send (request) {
-      socket.write(codec.encode(request))
-    },
-    onmessage
-  }, options)
+    send (chunk) {
+      socket.write(chunk)
+    }
+  }, options))
 
   socket.on('close', () => {
     ar.close()
@@ -134,6 +150,7 @@ function createFromSocket (socket, options = {}) {
   return ar
 }
 
-module.exports = (...args) => new AbstractRequest(...args)
-module.exports.AbstractRequest = AbstractRequest
+module.exports = (...args) => new Nanomessage(...args)
+module.exports.Nanomessage = Nanomessage
 module.exports.createFromSocket = createFromSocket
+module.exports.symbols = { _requests, _timeout, _init, _subscription }
