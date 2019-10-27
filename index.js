@@ -1,7 +1,6 @@
-const hyperid = require('hyperid')()
-
-const defaultCodec = require('./codec')
-const { TimeoutError, EncodeError, DecodeError, ResponseError, CloseError } = require('./errors')
+const Request = require('./lib/request')
+const defaultCodec = require('./lib/codec')
+const { EncodeError, DecodeError, ResponseError, CloseError } = require('./lib/errors')
 
 const _requests = Symbol('requests')
 const _timeout = Symbol('timeout')
@@ -10,29 +9,6 @@ const _subscription = Symbol('subscription')
 const _codec = Symbol('codec')
 const _encode = Symbol('encode')
 const _decode = Symbol('decode')
-
-class Request {
-  constructor (data, timeout) {
-    this.id = hyperid()
-    this.data = data
-    this.promise = new Promise((resolve, reject) => {
-      this._resolve = resolve
-      this._reject = reject
-      this.timer = setTimeout(() => {
-        reject(new TimeoutError(null, { timeout, id: this.id, data: this.data }))
-      }, timeout)
-    })
-  }
-
-  clear () {
-    clearTimeout(this.timer)
-  }
-
-  resolve (data) {
-    this.clear()
-    this._resolve(data)
-  }
-}
 
 class Nanomessage {
   static isRequest (request) {
@@ -126,7 +102,7 @@ class Nanomessage {
 }
 
 function createFromSocket (socket, options = {}) {
-  const ar = new Nanomessage(Object.assign({
+  const nm = new Nanomessage(Object.assign({
     subscribe (ondata) {
       socket.on('data', async (data) => {
         try {
@@ -142,15 +118,15 @@ function createFromSocket (socket, options = {}) {
   }, options))
 
   socket.on('close', () => {
-    ar.close()
+    nm.close()
   })
 
-  ar.socket = socket
+  nm.socket = socket
 
-  return ar
+  return nm
 }
 
 module.exports = (...args) => new Nanomessage(...args)
 module.exports.Nanomessage = Nanomessage
 module.exports.createFromSocket = createFromSocket
-module.exports.symbols = { _requests, _timeout, _init, _subscription }
+module.exports.symbols = { _requests, _timeout, _init, _subscription, _codec, _encode, _decode }
