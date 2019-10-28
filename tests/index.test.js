@@ -1,7 +1,7 @@
 const through = require('through2')
 const duplexify = require('duplexify')
 
-const { createFromSocket, symbols: { _requests } } = require('..')
+const { createFromSocket, symbols: { kRequests } } = require('..')
 
 const createConnection = (aliceOpts = {}, bobOpts = {}) => {
   const t1 = through()
@@ -52,15 +52,15 @@ test('timeout', async () => {
 test('automatic cleanup requests', async () => {
   const { bob } = createConnection()
 
-  expect(bob[_requests].size).toBe(0)
+  expect(bob[kRequests].size).toBe(0)
 
   const ten = Array.from(Array(10).keys()).map(() => bob.request('message'))
 
-  expect(bob[_requests].size).toBe(10)
+  expect(bob[kRequests].size).toBe(10)
 
   await Promise.all(ten)
 
-  expect(bob[_requests].size).toBe(0)
+  expect(bob[kRequests].size).toBe(0)
 })
 
 test('close', async () => {
@@ -72,13 +72,13 @@ test('close', async () => {
 
   const finish = expect(bob.request('message')).rejects.toThrow('Nanomessage close.')
 
-  expect(bob[_requests].size).toBe(1)
+  expect(bob[kRequests].size).toBe(1)
 
   setTimeout(() => expect(bob.close()).resolves.toBeUndefined(), 1)
 
   await finish
 
-  expect(bob[_requests].size).toBe(0)
+  expect(bob[kRequests].size).toBe(0)
 })
 
 test('detect invalid request', async () => {

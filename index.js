@@ -2,13 +2,13 @@ const Request = require('./lib/request')
 const defaultCodec = require('./lib/codec')
 const { EncodeError, DecodeError, ResponseError, CloseError } = require('./lib/errors')
 
-const _requests = Symbol('requests')
-const _timeout = Symbol('timeout')
-const _init = Symbol('init')
-const _subscription = Symbol('subscription')
-const _codec = Symbol('codec')
-const _encode = Symbol('encode')
-const _decode = Symbol('decode')
+const kRequests = Symbol('nanomessage.requests')
+const kTimeout = Symbol('nanomessage.timeout')
+const kInit = Symbol('nanomessage.init')
+const kSubscription = Symbol('nanomessage.subscription')
+const kCodec = Symbol('nanomessage.codec')
+const kEncode = Symbol('nanomessage.encode')
+const kDecode = Symbol('nanomessage.decode')
 
 class Nanomessage {
   static isRequest (request) {
@@ -23,38 +23,38 @@ class Nanomessage {
     if (close) this._close = close
     if (onrequest) this.setRequestHandler(onrequest)
 
-    this[_timeout] = timeout
-    this[_requests] = new Map()
-    this[_codec] = codec
+    this[kTimeout] = timeout
+    this[kRequests] = new Map()
+    this[kCodec] = codec
 
-    this[_init]()
+    this[kInit]()
   }
 
   async close () {
-    this[_subscription]()
+    this[kSubscription]()
 
-    this[_requests].forEach(request => {
+    this[kRequests].forEach(request => {
       request.clear()
       request._reject(new CloseError(null, { id: request.id }))
     })
 
-    this[_requests].clear()
+    this[kRequests].clear()
     await this._close()
   }
 
   async request (data) {
-    const request = new Request(data, this[_timeout])
-    this[_requests].set(request.id, request)
+    const request = new Request(data, this[kTimeout])
+    this[kRequests].set(request.id, request)
 
     try {
-      await this._send(this[_encode](request.id, request.data, 0))
+      await this._send(this[kEncode](request.id, request.data, 0))
       const data = await request.promise
       request.clear()
-      this[_requests].delete(request.id)
+      this[kRequests].delete(request.id)
       return data
     } catch (err) {
       request.clear()
-      this[_requests].delete(request.id)
+      this[kRequests].delete(request.id)
       throw err
     }
   }
@@ -65,38 +65,38 @@ class Nanomessage {
 
   _onrequest () {}
 
-  [_init] () {
-    this[_subscription] = this._subscribe(async message => {
-      const { nmId, nmData, nmAck } = this[_decode](message)
+  [kInit] () {
+    this[kSubscription] = this._subscribe(async message => {
+      const { nmId, nmData, nmAck } = this[kDecode](message)
 
       if (nmAck) {
-        const request = this[_requests].get(nmId)
+        const request = this[kRequests].get(nmId)
         if (request) request.resolve(nmData)
         return
       }
 
       try {
         const data = await this._onrequest(nmData)
-        await this._send(this[_encode](nmId, data, 1))
+        await this._send(this[kEncode](nmId, data, 1))
       } catch (err) {
         throw new ResponseError(nmId, err)
       }
     }) || (() => {})
   }
 
-  [_encode] (id, data, ack) {
+  [kEncode] (id, data, ack) {
     try {
       if (!id) throw new Error('The nmId is required.')
-      const chunk = this[_codec].encode({ nmId: id, nmData: data, nmAck: ack })
+      const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmAck: ack })
       return chunk
     } catch (err) {
       throw new EncodeError(err.message, { id, data, ack })
     }
   }
 
-  [_decode] (message) {
+  [kDecode] (message) {
     try {
-      const request = this[_codec].decode(message)
+      const request = this[kCodec].decode(message)
       if (!request.nmId) throw new Error('Invalid request.')
       return request
     } catch (err) {
@@ -137,4 +137,4 @@ function createFromSocket (socket, options = {}) {
 module.exports = (...args) => new Nanomessage(...args)
 module.exports.Nanomessage = Nanomessage
 module.exports.createFromSocket = createFromSocket
-module.exports.symbols = { _requests, _timeout, _init, _subscription, _codec, _encode, _decode }
+module.exports.symbols = { kRequests, kTimeout, kInit, kSubscription, kCodec, kEncode, kDecode }
