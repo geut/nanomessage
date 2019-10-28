@@ -64,6 +64,8 @@ test('automatic cleanup requests', async () => {
 })
 
 test('close', async () => {
+  expect.assertions(4)
+
   const { bob } = createConnection(
     { onmessage: () => new Promise(resolve => setTimeout(resolve, 1000)) }
   )
@@ -72,9 +74,23 @@ test('close', async () => {
 
   expect(bob[_requests].size).toBe(1)
 
-  setTimeout(() => bob.close(), 1)
+  setTimeout(() => expect(bob.close()).resolves.toBeUndefined(), 1)
 
   await finish
 
   expect(bob[_requests].size).toBe(0)
+})
+
+test('detect invalid request', async () => {
+  const { alice, bob } = createConnection()
+
+  alice.socket.once('error', err => {
+    expect(err.reason).toBe('Invalid request.')
+    alice.socket.once('error', err => {
+      expect(err.reason).toEqual(expect.stringMatching(/Unexpected token/))
+    })
+  })
+
+  bob.socket.write(Buffer.from(JSON.stringify({ msg: 'not valid' })))
+  bob.socket.write('not valid')
 })

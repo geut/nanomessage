@@ -16,11 +16,13 @@ class Nanomessage {
   }
 
   constructor (opts = {}) {
-    const { send, subscribe, onmessage, timeout = 10 * 1000, codec = defaultCodec } = opts
+    const { send, subscribe, close, onmessage, onerror, timeout = 10 * 1000, codec = defaultCodec } = opts
 
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
+    if (close) this._close = close
     this.setMessageHandler(onmessage)
+    this.setErrorHandler(onerror)
 
     this[_timeout] = timeout
     this[_requests] = new Map()
@@ -29,7 +31,7 @@ class Nanomessage {
     this[_init]()
   }
 
-  close () {
+  async close () {
     this[_subscription]()
 
     this[_requests].forEach(request => {
@@ -38,6 +40,7 @@ class Nanomessage {
     })
 
     this[_requests].clear()
+    await this._close()
   }
 
   async request (data) {
@@ -59,6 +62,10 @@ class Nanomessage {
 
   setMessageHandler (cb = () => {}) {
     this._onmessage = cb
+  }
+
+  setErrorHandler (cb = () => {}) {
+    this._onerror = cb
   }
 
   [_init] () {
@@ -93,7 +100,7 @@ class Nanomessage {
   [_decode] (message) {
     try {
       const request = this[_codec].decode(message)
-      if (!request.nmId) throw new Error('The nmId is required.')
+      if (!request.nmId) throw new Error('Invalid request.')
       return request
     } catch (err) {
       throw new DecodeError(err.message, { message })
@@ -108,12 +115,16 @@ function createFromSocket (socket, options = {}) {
         try {
           await ondata(data)
         } catch (err) {
-          console.log(err)
+          socket.emit('error', err)
         }
       })
     },
     send (chunk) {
       socket.write(chunk)
+    },
+    close () {
+      if (socket.destroyed) return
+      return new Promise(resolve => socket.destroy(null, resolve))
     }
   }, options))
 
