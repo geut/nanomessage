@@ -12,7 +12,7 @@ server.on('connection', function connection (ws) {
     send (msg) {
       ws.send(msg)
     },
-    onmessage (msg) {
+    onrequest (msg) {
       console.log(msg)
       return 'pong from Alice'
     }

@@ -17,13 +17,13 @@ test('simple', async () => {
 
   const { alice, bob } = createConnection(
     {
-      onmessage: (data) => {
+      onrequest: (data) => {
         expect(data).toEqual(Buffer.from('ping from bob'))
         return Buffer.from('pong from alice')
       }
     },
     {
-      onmessage: (data) => {
+      onrequest: (data) => {
         expect(data).toBe('ping from alice')
         return 'pong from bob'
       }
@@ -37,7 +37,7 @@ test('simple', async () => {
 test('timeout', async () => {
   const { bob } = createConnection(
     {
-      onmessage: async () => {
+      onrequest: async () => {
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
     },
@@ -67,7 +67,7 @@ test('close', async () => {
   expect.assertions(4)
 
   const { bob } = createConnection(
-    { onmessage: () => new Promise(resolve => setTimeout(resolve, 1000)) }
+    { onrequest: () => new Promise(resolve => setTimeout(resolve, 1000)) }
   )
 
   const finish = expect(bob.request('message')).rejects.toThrow('Nanomessage close.')

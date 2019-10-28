@@ -1,7 +1,7 @@
 {
   "name": "nanomessage",
   "version": "1.0.0",
-  "description": "Template to create modules following the Geut path",
+  "description": "Simple module that helps you to build a `request-response` abstraction on top of any solution out there (e.g. streams).",
   "main": "index.js",
   "files": [
     "lib",
@@ -45,9 +45,13 @@
     "url": "git+https://github.com/geut/nanomessage.git"
   },
   "keywords": [
-    "create",
+    "nano",
     "geut",
-    "module"
+    "request",
+    "request-response",
+    "websocket",
+    "socket",
+    "stream"
   ],
   "author": {
     "name": "GEUT",
@@ -57,5 +61,8 @@
   "bugs": {
     "url": "https://github.com/geut/nanomessage/issues"
   },
-  "homepage": "https://github.com/geut/nanomessage#readme"
+  "homepage": "https://github.com/geut/nanomessage#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }

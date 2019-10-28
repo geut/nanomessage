@@ -16,13 +16,12 @@ class Nanomessage {
   }
 
   constructor (opts = {}) {
-    const { send, subscribe, close, onmessage, onerror, timeout = 10 * 1000, codec = defaultCodec } = opts
+    const { send, subscribe, close, onrequest, timeout = 10 * 1000, codec = defaultCodec } = opts
 
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
     if (close) this._close = close
-    this.setMessageHandler(onmessage)
-    this.setErrorHandler(onerror)
+    if (onrequest) this.setRequestHandler(onrequest)
 
     this[_timeout] = timeout
     this[_requests] = new Map()
@@ -60,13 +59,11 @@ class Nanomessage {
     }
   }
 
-  setMessageHandler (cb = () => {}) {
-    this._onmessage = cb
+  setRequestHandler (cb) {
+    this._onrequest = cb
   }
 
-  setErrorHandler (cb = () => {}) {
-    this._onerror = cb
-  }
+  _onrequest () {}
 
   [_init] () {
     this[_subscription] = this._subscribe(async message => {
@@ -79,7 +76,7 @@ class Nanomessage {
       }
 
       try {
-        const data = await this._onmessage(nmData)
+        const data = await this._onrequest(nmData)
         await this._send(this[_encode](nmId, data, 1))
       } catch (err) {
         throw new ResponseError(nmId, err)

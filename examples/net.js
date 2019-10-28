@@ -4,7 +4,7 @@ const { createFromSocket } = require('..')
 
 const Alice = net.createServer(socket => {
   createFromSocket(socket, {
-    onmessage (msg) {
+    onrequest (msg) {
       console.log(msg)
       return 'pong from Alice'
     }
