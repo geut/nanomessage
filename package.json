@@ -16,8 +16,8 @@
     "prepublishOnly": "npm test"
   },
   "dependencies": {
-    "custom-error-class": "^1.0.0",
-    "hyperid": "^2.0.2"
+    "hyperid": "^2.0.2",
+    "quick-format-unescaped": "^3.0.3"
   },
   "devDependencies": {
     "@geut/chan": "^2.0.0",

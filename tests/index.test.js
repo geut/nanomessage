@@ -2,6 +2,10 @@ const through = require('through2')
 const duplexify = require('duplexify')
 
 const { createFromSocket, symbols: { kRequests } } = require('..')
+const {
+  NMSG_ERR_TIMEOUT,
+  NMSG_ERR_CLOSE
+} = require('../lib/errors')
 
 const createConnection = (aliceOpts = {}, bobOpts = {}) => {
   const t1 = through()
@@ -46,7 +50,7 @@ test('timeout', async () => {
     }
   )
 
-  await expect(bob.request('ping from bob')).rejects.toThrow('Timeout on request.')
+  await expect(bob.request('ping from bob')).rejects.toThrow(NMSG_ERR_TIMEOUT)
 })
 
 test('automatic cleanup requests', async () => {
@@ -70,7 +74,7 @@ test('close', async () => {
     { onrequest: () => new Promise(resolve => setTimeout(resolve, 1000)) }
   )
 
-  const finish = expect(bob.request('message')).rejects.toThrow('Nanomessage close.')
+  const finish = expect(bob.request('message')).rejects.toThrow(NMSG_ERR_CLOSE)
 
   expect(bob[kRequests].size).toBe(1)
 
@@ -85,9 +89,9 @@ test('detect invalid request', async () => {
   const { alice, bob } = createConnection()
 
   alice.socket.once('error', err => {
-    expect(err.reason).toBe('Invalid request.')
+    expect(err.code).toBe('NMSG_ERR_INVALID_REQUEST')
     alice.socket.once('error', err => {
-      expect(err.reason).toEqual(expect.stringMatching(/Unexpected token/))
+      expect(err.code).toBe('NMSG_ERR_DECODE')
     })
   })
 

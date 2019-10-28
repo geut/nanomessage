@@ -1,6 +1,12 @@
 const Request = require('./lib/request')
 const defaultCodec = require('./lib/codec')
-const { EncodeError, DecodeError, ResponseError, CloseError } = require('./lib/errors')
+const {
+  NMSG_ERR_ENCODE,
+  NMSG_ERR_DECODE,
+  NMSG_ERR_RESPONSE,
+  NMSG_ERR_CLOSE,
+  NMSG_ERR_INVALID_REQUEST
+} = require('./lib/errors')
 
 const kRequests = Symbol('nanomessage.requests')
 const kTimeout = Symbol('nanomessage.timeout')
@@ -35,7 +41,7 @@ class Nanomessage {
 
     this[kRequests].forEach(request => {
       request.clear()
-      request._reject(new CloseError(null, { id: request.id }))
+      request._reject(new NMSG_ERR_CLOSE(request.id))
     })
 
     this[kRequests].clear()
@@ -79,7 +85,7 @@ class Nanomessage {
         const data = await this._onrequest(nmData)
         await this._send(this[kEncode](nmId, data, 1))
       } catch (err) {
-        throw new ResponseError(nmId, err)
+        throw new NMSG_ERR_RESPONSE(nmId, err.message)
       }
     }) || (() => {})
   }
@@ -90,17 +96,20 @@ class Nanomessage {
       const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmAck: ack })
       return chunk
     } catch (err) {
-      throw new EncodeError(err.message, { id, data, ack })
+      throw new NMSG_ERR_ENCODE(err.message)
     }
   }
 
   [kDecode] (message) {
     try {
       const request = this[kCodec].decode(message)
-      if (!request.nmId) throw new Error('Invalid request.')
+      if (!request.nmId) throw new NMSG_ERR_INVALID_REQUEST()
       return request
     } catch (err) {
-      throw new DecodeError(err.message, { message })
+      if (err.code === 'NMSG_ERR_INVALID_REQUEST') {
+        throw err
+      }
+      throw new NMSG_ERR_DECODE(err.message)
     }
   }
 }
