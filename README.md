@@ -4,7 +4,7 @@
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
-> Simple module that helps you to build a `request-response` abstraction on top of any solution out there (e.g. streams).
+> Simple module that helps you to build a `request-response` abstraction on top of any other solution (e.g. streams).
 
 ## <a name="install"></a> Install
 
