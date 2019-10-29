@@ -12,7 +12,7 @@
     "test": "jest --passWithNoTests",
     "posttest": "npm run lint",
     "lint": "xd-ns \"**/*.js\"",
-    "version": "chan release ${npm_package_version} && git add .",
+    "version": "chan release --allow-yanked ${npm_package_version} && git add .",
     "prepublishOnly": "npm test"
   },
   "dependencies": {
