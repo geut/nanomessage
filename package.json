@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "hyperid": "^2.0.2",
-    "quick-format-unescaped": "^3.0.3"
+    "nanoerror": "^1.0.0"
   },
   "devDependencies": {
     "@geut/chan": "^2.0.0",
