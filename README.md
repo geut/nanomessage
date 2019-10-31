@@ -91,10 +91,10 @@ Create a new nanomessage.
 
 Options include:
 
-- `send: async function (chunk: Buffer) {}`: Defines how to send the messages provide it by nanomessage to the low level solution.
-- `subscribe: function (cb) {}`: Defines how to read data from the low level solution.
-- `close: function () {}`: Defines a function to run after the nanomessage instance was close.
-- `onrequest: async function (msg) {}`: Async handler to process the incoming requests.
+- `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
+- `send: (chunk: Buffer) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
+- `onrequest: (msg) -> Promise<Response>`: Async handler to process the incoming requests.
+- `close: () -> Promise<*>`: Defines a function to run after the nanomessage instance was close.
 - `timeout: 10 * 1000`: Time to wait for the response of a request.
 - `codec: JSON`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
 
@@ -108,25 +108,25 @@ class CustomNanomessage exports Nanomessage {
     super(...args)
   }
 
-  async _send (chunk) {}
-
   _subscribe () {}
 
-  _close () {}
+  async _send (chunk) {}
 
   async _onrequest (msg) {}
+
+  async _close () {}
 }
 ```
 
-#### `nm.request(data)`
+#### `nm.request(data) -> Promise<Response>`
 
-Send a request. `data` can be any serializable type supported by your codec.
+Send a request and wait for a response. `data` can be any serializable type supported by your codec.
 
-#### `nm.setRequestHandler(handler)`
+#### `nm.setRequestHandler(handler) -> Nanomessage`
 
 Defines a request handler. It will override the old handler.
 
-#### `nm.close()`
+#### `nm.close() -> Promise<*>`
 
 Close the nanomessage instance.
 

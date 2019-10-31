@@ -1,9 +1,9 @@
 /**
  * @typedef {object} NanomessageOptions
- * @property {sendCallback} [opts.send]
- * @property {subscribeCallback} [opts.subscribe]
- * @property {onrequestCallback} [opts.onrequest]
- * @property {function} [opts.close]
+ * @property {send} [opts.send]
+ * @property {subscribe} [opts.subscribe]
+ * @property {onrequest} [opts.onrequest]
+ * @property {close} [opts.close]
  * @property {number} [opts.timeout=10000]
  * @property {Codec} [opts.codec=json]
  */
@@ -16,23 +16,29 @@
  */
 
 /**
- * How to send the data.
- * @callback sendCallback
- * @param {Buffer}
- * @returns {Promise}
- */
-
-/**
  * Subscribe for the incoming data.
- * @callback subscribeCallback
+ * @callback subscribe
  * @param {!function} onData
  * @returns {?function} - Unsubscribe function.
  */
 
 /**
+ * How to send the data.
+ * @callback send
+ * @param {Buffer}
+ * @returns {Promise}
+ */
+
+/**
  * Request handler.
- * @callback onrequestCallback
+ * @callback onrequest
  * @param {!Buffer} data
+ * @returns {Promise<*>} - Response with any data.
+ */
+
+/**
+ * Runs and wait for a close operation.
+ * @callback close
  * @returns {Promise<*>} - Response with any data.
  */
 
@@ -60,10 +66,10 @@ class Nanomessage {
    * @param {NanomessageOptions} [opts]
    */
   constructor (opts = {}) {
-    const { send, subscribe, onrequest, close, timeout = 10 * 1000, codec = defaultCodec } = opts
+    const { subscribe, send, onrequest, close, timeout = 10 * 1000, codec = defaultCodec } = opts
 
-    if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
+    if (send) this._send = send
     if (onrequest) this.setRequestHandler(onrequest)
     if (close) this._close = close
 
@@ -121,6 +127,7 @@ class Nanomessage {
    */
   setRequestHandler (cb) {
     this._onrequest = cb
+    return this
   }
 
   _onrequest () {}
