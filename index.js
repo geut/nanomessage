@@ -90,7 +90,7 @@ class Nanomessage {
 
     this[kRequests].forEach(request => {
       request.clear()
-      request._reject(new NMSG_ERR_CLOSE(request.id))
+      request.reject(new NMSG_ERR_CLOSE(request.id))
     })
 
     this[kRequests].clear()
