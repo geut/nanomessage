@@ -4,15 +4,25 @@ const duplexify = require('duplexify')
 const { createFromSocket, symbols: { kRequests } } = require('..')
 const {
   NMSG_ERR_TIMEOUT,
-  NMSG_ERR_CLOSE
+  NMSG_ERR_CLOSE,
+  NMSG_ERR_CANCEL
 } = require('../lib/errors')
 
 const createConnection = (aliceOpts = {}, bobOpts = {}) => {
   const t1 = through()
   const t2 = through()
 
-  const alice = createFromSocket(duplexify(t1, t2), aliceOpts)
-  const bob = createFromSocket(duplexify(t2, t1), bobOpts)
+  const stream1 = duplexify(t1, t2)
+  stream1.on('error', (err) => {
+    console.error(err.message)
+  })
+  const alice = createFromSocket(stream1, aliceOpts)
+
+  const stream2 = duplexify(t2, t1)
+  stream2.on('error', (err) => {
+    console.error(err.message)
+  })
+  const bob = createFromSocket(stream2, bobOpts)
   return { alice, bob }
 }
 
@@ -50,7 +60,25 @@ test('timeout', async () => {
     }
   )
 
-  await expect(bob.request('ping from bob')).rejects.toThrow(NMSG_ERR_TIMEOUT)
+  const request = bob.request('ping from bob')
+  await expect(request).rejects.toThrow(NMSG_ERR_TIMEOUT)
+})
+
+test('cancel', async () => {
+  const { bob } = createConnection(
+    {
+      onrequest: async () => {
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+    },
+    {
+      timeout: 1000
+    }
+  )
+
+  const request = bob.request('ping from bob')
+  setTimeout(() => request.cancel(), 0)
+  await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
 })
 
 test('automatic cleanup requests', async () => {

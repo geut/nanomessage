@@ -68,10 +68,10 @@ class Nanomessage {
   constructor (opts = {}) {
     const { subscribe, send, onrequest, close, timeout = 10 * 1000, codec = defaultCodec } = opts
 
-    if (subscribe) this._subscribe = subscribe
-    if (send) this._send = send
+    if (subscribe) this._subscribe = (...args) => subscribe(...args)
+    if (send) this._send = async (...args) => send(...args)
     if (onrequest) this.setRequestHandler(onrequest)
-    if (close) this._close = close
+    if (close) this._close = async (...args) => close(...args)
 
     this[kTimeout] = timeout
     this[kRequests] = new Map()
@@ -89,8 +89,7 @@ class Nanomessage {
     this[kSubscription]()
 
     this[kRequests].forEach(request => {
-      request.clear()
-      request.reject(new NMSG_ERR_CLOSE(request.id))
+      request.reject(new NMSG_ERR_CLOSE())
     })
 
     this[kRequests].clear()
@@ -101,32 +100,30 @@ class Nanomessage {
    * Send a new request and wait for a response.
    *
    * @param {*} data - Data to be send it.
-   * @returns {Promise<*>} Returns the remote response.
+   * @returns {Request<*>} Returns the remote response.
    */
-  async request (data) {
-    const request = new Request(data, this[kTimeout])
+  request (data) {
+    const request = new Request({
+      data,
+      timeout: this[kTimeout],
+      task: (id, data) => this._send(this[kEncode](id, data)),
+      onfinally: () => {
+        request.checkPendingTask()
+        this[kRequests].delete(request.id)
+      }
+    })
     this[kRequests].set(request.id, request)
 
-    try {
-      await this._send(this[kEncode](request.id, request.data, 0))
-      const data = await request.promise
-      request.clear()
-      this[kRequests].delete(request.id)
-      return data
-    } catch (err) {
-      request.clear()
-      this[kRequests].delete(request.id)
-      throw err
-    }
+    return request
   }
 
   /**
    * Defines the request handler.
    *
-   * @param {onrequestCallback} cb
+   * @param {onrequestCallback} onrequest
    */
-  setRequestHandler (cb) {
-    this._onrequest = cb
+  setRequestHandler (onrequest) {
+    this._onrequest = (data) => onrequest(data)
     return this
   }
 
@@ -134,27 +131,44 @@ class Nanomessage {
 
   [kInit] () {
     this[kSubscription] = this._subscribe(async message => {
-      const { nmId, nmData, nmAck } = this[kDecode](message)
+      const { nmId, nmData, nmResponse } = this[kDecode](message)
 
-      if (nmAck) {
+      // Answer
+      if (nmResponse) {
         const request = this[kRequests].get(nmId)
         if (request) request.resolve(nmData)
         return
       }
 
+      const request = new Request({
+        id: nmId,
+        data: nmData,
+        response: true,
+        timeout: this[kTimeout],
+        task: async (id, data) => {
+          data = await this._onrequest(data)
+          await this._send(this[kEncode](id, data, true))
+          request.resolve()
+        },
+        onfinally: () => {
+          request.checkPendingTask()
+          this[kRequests].delete(request.id)
+        }
+      })
+      this[kRequests].set(request.id, request)
+
       try {
-        const data = await this._onrequest(nmData)
-        await this._send(this[kEncode](nmId, data, 1))
+        await request
       } catch (err) {
         throw new NMSG_ERR_RESPONSE(nmId, err.message)
       }
     }) || (() => {})
   }
 
-  [kEncode] (id, data, ack) {
+  [kEncode] (id, data, response) {
     try {
       if (!id) throw new Error('The nmId is required.')
-      const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmAck: ack })
+      const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmResponse: response })
       return chunk
     } catch (err) {
       throw new NMSG_ERR_ENCODE(err.message)
