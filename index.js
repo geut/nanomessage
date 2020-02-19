@@ -108,7 +108,6 @@ class Nanomessage {
       timeout: this[kTimeout],
       task: (id, data) => this._send(this[kEncode](id, data)),
       onfinally: () => {
-        request.checkPendingTask()
         this[kRequests].delete(request.id)
       }
     })
@@ -151,7 +150,6 @@ class Nanomessage {
           request.resolve()
         },
         onfinally: () => {
-          request.checkPendingTask()
           this[kRequests].delete(request.id)
         }
       })
@@ -192,7 +190,7 @@ class Nanomessage {
 /**
  * Create a nanomessage from a socket.
  *
- * @param {object} socket
+ * @param {DuplexStream} socket
  * @param {NanomessageOptions} [opts]
  * @returns {Nanomessage}
  */
@@ -203,7 +201,7 @@ function createFromSocket (socket, options = {}) {
         try {
           await ondata(data)
         } catch (err) {
-          socket.emit('error', err)
+          socket.emit('nanomessage-error', err)
         }
       })
     },

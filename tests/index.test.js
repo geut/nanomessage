@@ -13,15 +13,9 @@ const createConnection = (aliceOpts = {}, bobOpts = {}) => {
   const t2 = through()
 
   const stream1 = duplexify(t1, t2)
-  stream1.on('error', (err) => {
-    console.error(err.message)
-  })
   const alice = createFromSocket(stream1, aliceOpts)
 
   const stream2 = duplexify(t2, t1)
-  stream2.on('error', (err) => {
-    console.error(err.message)
-  })
   const bob = createFromSocket(stream2, bobOpts)
   return { alice, bob }
 }
@@ -116,9 +110,9 @@ test('close', async () => {
 test('detect invalid request', async () => {
   const { alice, bob } = createConnection()
 
-  alice.socket.once('error', err => {
+  alice.socket.once('nanomessage-error', err => {
     expect(err.code).toBe('NMSG_ERR_INVALID_REQUEST')
-    alice.socket.once('error', err => {
+    alice.socket.once('nanomessage-error', err => {
       expect(err.code).toBe('NMSG_ERR_DECODE')
     })
   })
