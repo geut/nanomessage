@@ -43,6 +43,7 @@
  */
 
 const assert = require('nanocustomassert')
+const eos = require('end-of-stream')
 
 const Request = require('./lib/request')
 const defaultCodec = require('./lib/codec')
@@ -221,7 +222,10 @@ function createFromStream (stream, options = {}) {
     },
     close () {
       if (stream.destroyed) return
-      return new Promise(resolve => stream.destroy(null, resolve))
+      return new Promise(resolve => {
+        eos(stream, () => resolve())
+        stream.destroy()
+      })
     }
   }, options))
 

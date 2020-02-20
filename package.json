@@ -16,6 +16,7 @@
     "prepublishOnly": "npm test"
   },
   "dependencies": {
+    "end-of-stream": "^1.4.4",
     "hyperid": "^2.0.2",
     "nanocustomassert": "^1.0.0",
     "nanoerror": "^1.0.0"
