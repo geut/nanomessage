@@ -19,6 +19,7 @@ const createConnection = (aliceOpts = { onRequest () {} }, bobOpts = { onRequest
 
   const stream2 = duplexify(t2, t1)
   const bob = createFromStream(stream2, bobOpts)
+
   return { alice, bob }
 }
 
@@ -106,7 +107,7 @@ test('automatic cleanup requests', async () => {
 })
 
 test('close', async (done) => {
-  expect.assertions(5)
+  expect.assertions(6)
 
   const { alice, bob } = createConnection()
 
@@ -115,7 +116,13 @@ test('close', async (done) => {
     done()
   })
 
-  const closing = expect(bob.request('message')).rejects.toThrow(NMSG_ERR_CLOSE)
+  const request = bob.request('message')
+
+  const closing = expect(request).rejects.toThrow(NMSG_ERR_CLOSE)
+
+  alice.once('task-pending', req => {
+    expect(request.id).toBe(req.id)
+  })
 
   expect(bob[kRequests].size).toBe(1)
 

@@ -6,7 +6,7 @@
  * @property {close} [opts.close]
  * @property {number} [opts.timeout=10000]
  * @property {Codec} [opts.codec=json]
- */
+*/
 
 /**
  * Compatible codec: https://github.com/mafintosh/codecs
@@ -42,6 +42,7 @@
  * @returns {Promise<*>} - Response with any data.
  */
 
+const { EventEmitter } = require('events')
 const assert = require('nanocustomassert')
 const eos = require('end-of-stream')
 
@@ -62,13 +63,16 @@ const kSubscription = Symbol('nanomessage.subscription')
 const kCodec = Symbol('nanomessage.codec')
 const kEncode = Symbol('nanomessage.encode')
 const kDecode = Symbol('nanomessage.decode')
+const kEndRequest = Symbol('nanomessage.endrequest')
 
-class Nanomessage {
+class Nanomessage extends EventEmitter {
   /**
    * @constructor
    * @param {NanomessageOptions} [opts]
    */
   constructor (opts = {}) {
+    super()
+
     const { subscribe, send, onRequest, close = () => {}, timeout = 10 * 1000, codec = defaultCodec } = opts
 
     assert(this._send || send, 'send is required')
@@ -95,11 +99,12 @@ class Nanomessage {
     this[kSubscription]()
 
     this[kRequests].forEach(request => {
-      request.reject(new NMSG_ERR_CLOSE())
+      request[Request.symbols.kReject](new NMSG_ERR_CLOSE())
     })
 
     this[kRequests].clear()
     await (this._close && this._close())
+    this.emit('closed')
   }
 
   /**
@@ -113,11 +118,12 @@ class Nanomessage {
       data,
       timeout: this[kTimeout],
       task: (id, data) => this._send(this[kEncode](id, data)),
-      onfinally: () => {
-        this[kRequests].delete(request.id)
+      onFinally: (req) => {
+        this[kEndRequest](req)
       }
     })
     this[kRequests].set(request.id, request)
+    this.emit('request-sended', request)
 
     return request
   }
@@ -143,7 +149,7 @@ class Nanomessage {
       // Answer
       if (nmResponse) {
         const request = this[kRequests].get(nmId)
-        if (request) request.resolve(nmData)
+        if (request) request[Request.symbols.kResolve](nmData)
         return
       }
 
@@ -152,13 +158,14 @@ class Nanomessage {
         data: nmData,
         response: true,
         timeout: this[kTimeout],
-        task: async (id, data) => {
+        task: async (id, data, response) => {
+          this.emit('request-received', data)
           data = await this._onRequest(data)
-          await this._send(this[kEncode](id, data, true))
-          request.resolve()
+          await this._send(this[kEncode](id, data, response))
+          request[Request.symbols.kResolve]()
         },
-        onfinally: () => {
-          this[kRequests].delete(request.id)
+        onFinally: (req) => {
+          this[kEndRequest](req)
         }
       })
       this[kRequests].set(request.id, request)
@@ -193,6 +200,12 @@ class Nanomessage {
       throw new NMSG_ERR_DECODE(err.message)
     }
   }
+
+  [kEndRequest] (request) {
+    this[kRequests].delete(request.id)
+    if (request.task) this.emit('task-pending', request)
+    this.emit('request-ended', request.id)
+  }
 }
 
 /**
@@ -215,10 +228,7 @@ function createFromStream (stream, options = {}) {
     },
     send (chunk) {
       if (stream.destroyed) return
-      return new Promise((resolve, reject) => stream.write(chunk, err => {
-        if (err) return reject(err)
-        resolve()
-      }))
+      stream.write(chunk)
     },
     close () {
       if (stream.destroyed) return
