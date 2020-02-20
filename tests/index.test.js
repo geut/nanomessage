@@ -1,37 +1,49 @@
 const through = require('through2')
 const duplexify = require('duplexify')
 
-const { createFromSocket, symbols: { kRequests } } = require('..')
+const nanomessage = require('..')
 const {
   NMSG_ERR_TIMEOUT,
   NMSG_ERR_CLOSE,
   NMSG_ERR_CANCEL
 } = require('../lib/errors')
 
-const createConnection = (aliceOpts = {}, bobOpts = {}) => {
+const { createFromStream, symbols: { kRequests } } = nanomessage
+
+const createConnection = (aliceOpts = { onRequest () {} }, bobOpts = { onRequest () {} }) => {
   const t1 = through()
   const t2 = through()
 
   const stream1 = duplexify(t1, t2)
-  const alice = createFromSocket(stream1, aliceOpts)
+  const alice = createFromStream(stream1, aliceOpts)
 
   const stream2 = duplexify(t2, t1)
-  const bob = createFromSocket(stream2, bobOpts)
+  const bob = createFromStream(stream2, bobOpts)
   return { alice, bob }
 }
+
+test('configuration', () => {
+  class CustomSend extends nanomessage.Nanomessage {
+    _send () {}
+  }
+
+  expect(() => nanomessage()).toThrow(/send is required/)
+  expect(() => nanomessage({ send: () => {} })).toThrow(/subscribe is required/)
+  expect(() => new CustomSend()).toThrow(/subscribe is required/)
+})
 
 test('simple', async () => {
   expect.assertions(4)
 
   const { alice, bob } = createConnection(
     {
-      onrequest: (data) => {
+      onRequest: (data) => {
         expect(data).toEqual(Buffer.from('ping from bob'))
         return Buffer.from('pong from alice')
       }
     },
     {
-      onrequest: (data) => {
+      onRequest: (data) => {
         expect(data).toBe('ping from alice')
         return 'pong from bob'
       }
@@ -45,7 +57,7 @@ test('simple', async () => {
 test('timeout', async () => {
   const { bob } = createConnection(
     {
-      onrequest: async () => {
+      onRequest: async () => {
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
     },
@@ -61,7 +73,7 @@ test('timeout', async () => {
 test('cancel', async () => {
   const { bob } = createConnection(
     {
-      onrequest: async () => {
+      onRequest: async () => {
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
     },
@@ -76,7 +88,11 @@ test('cancel', async () => {
 })
 
 test('automatic cleanup requests', async () => {
-  const { bob } = createConnection()
+  const { bob } = createConnection({
+    onRequest () {}
+  }, {
+    onRequest () {}
+  })
 
   expect(bob[kRequests].size).toBe(0)
 
@@ -89,20 +105,23 @@ test('automatic cleanup requests', async () => {
   expect(bob[kRequests].size).toBe(0)
 })
 
-test('close', async () => {
-  expect.assertions(4)
+test('close', async (done) => {
+  expect.assertions(5)
 
-  const { bob } = createConnection(
-    { onrequest: () => new Promise(resolve => setTimeout(resolve, 1000)) }
-  )
+  const { alice, bob } = createConnection()
 
-  const finish = expect(bob.request('message')).rejects.toThrow(NMSG_ERR_CLOSE)
+  alice.stream.once('error', err => {
+    expect(err.code).toBe('NMSG_ERR_RESPONSE')
+    done()
+  })
+
+  const closing = expect(bob.request('message')).rejects.toThrow(NMSG_ERR_CLOSE)
 
   expect(bob[kRequests].size).toBe(1)
 
-  setTimeout(() => expect(bob.close()).resolves.toBeUndefined(), 1)
+  process.nextTick(() => expect(bob.close()).resolves.toBeUndefined())
 
-  await finish
+  await closing
 
   expect(bob[kRequests].size).toBe(0)
 })
@@ -110,13 +129,13 @@ test('close', async () => {
 test('detect invalid request', async () => {
   const { alice, bob } = createConnection()
 
-  alice.socket.once('nanomessage-error', err => {
+  alice.stream.once('error', err => {
     expect(err.code).toBe('NMSG_ERR_INVALID_REQUEST')
-    alice.socket.once('nanomessage-error', err => {
+    alice.stream.once('error', err => {
       expect(err.code).toBe('NMSG_ERR_DECODE')
     })
   })
 
-  bob.socket.write(Buffer.from(JSON.stringify({ msg: 'not valid' })))
-  bob.socket.write('not valid')
+  bob.stream.write(Buffer.from(JSON.stringify({ msg: 'not valid' })))
+  bob.stream.write('not valid')
 })

@@ -32,7 +32,7 @@ server.on('connection', function connection (ws) {
       // Define how to send data
       ws.send(msg)
     },
-    onrequest (msg) {
+    onRequest (msg) {
       // Process the new request and return a response
       console.log(msg)
       return 'pong from Alice'
@@ -59,15 +59,15 @@ const Bob = nanomessage({
 })()
 ```
 
-### net + createFromSocket helper
+### net + createFromStream helper
 ```javascript
 const net = require('net')
 
-const { createFromSocket } = require('..')
+const { createFromStream } = require('..')
 
 const Alice = net.createServer(socket => {
-  createFromSocket(socket, {
-    onrequest (msg) {
+  createFromStream(socket, {
+    onRequest (msg) {
       console.log(msg)
       return 'pong from Alice'
     }
@@ -76,7 +76,7 @@ const Alice = net.createServer(socket => {
 
 Alice.listen(3000)
 
-const Bob = createFromSocket(net.createConnection(3000))
+const Bob = createFromStream(net.createConnection(3000))
 
 ;(async () => {
   console.log(await Bob.request('ping from Bob'))
@@ -93,7 +93,7 @@ Options include:
 
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
 - `send: (chunk: Buffer) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
-- `onrequest: (msg) -> Promise<Response>`: Async handler to process the incoming requests.
+- `onRequest: (msg) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise<*>`: Defines a function to run after the nanomessage instance was close.
 - `timeout: 10 * 1000`: Time to wait for the response of a request.
 - `codec: JSON`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
@@ -112,7 +112,7 @@ class CustomNanomessage exports Nanomessage {
 
   async _send (chunk) {}
 
-  async _onrequest (msg) {}
+  async _onRequest (msg) {}
 
   async _close () {}
 }

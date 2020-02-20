@@ -2,7 +2,7 @@
  * @typedef {object} NanomessageOptions
  * @property {send} [opts.send]
  * @property {subscribe} [opts.subscribe]
- * @property {onrequest} [opts.onrequest]
+ * @property {onRequest} [opts.onRequest]
  * @property {close} [opts.close]
  * @property {number} [opts.timeout=10000]
  * @property {Codec} [opts.codec=json]
@@ -31,7 +31,7 @@
 
 /**
  * Request handler.
- * @callback onrequest
+ * @callback onRequest
  * @param {!Buffer} data
  * @returns {Promise<*>} - Response with any data.
  */
@@ -41,6 +41,8 @@
  * @callback close
  * @returns {Promise<*>} - Response with any data.
  */
+
+const assert = require('nanocustomassert')
 
 const Request = require('./lib/request')
 const defaultCodec = require('./lib/codec')
@@ -66,12 +68,15 @@ class Nanomessage {
    * @param {NanomessageOptions} [opts]
    */
   constructor (opts = {}) {
-    const { subscribe, send, onrequest, close, timeout = 10 * 1000, codec = defaultCodec } = opts
+    const { subscribe, send, onRequest, close = () => {}, timeout = 10 * 1000, codec = defaultCodec } = opts
 
-    if (subscribe) this._subscribe = (...args) => subscribe(...args)
-    if (send) this._send = async (...args) => send(...args)
-    if (onrequest) this.setRequestHandler(onrequest)
-    if (close) this._close = async (...args) => close(...args)
+    assert(this._send || send, 'send is required')
+    assert(this._subscribe || subscribe, 'subscribe is required')
+
+    if (send) this._send = async (data) => send(data)
+    if (subscribe) this._subscribe = (onData) => subscribe(onData)
+    if (onRequest) this.setRequestHandler(onRequest)
+    if (close) this._close = async () => close()
 
     this[kTimeout] = timeout
     this[kRequests] = new Map()
@@ -93,7 +98,7 @@ class Nanomessage {
     })
 
     this[kRequests].clear()
-    await this._close()
+    await (this._close && this._close())
   }
 
   /**
@@ -119,14 +124,16 @@ class Nanomessage {
   /**
    * Defines the request handler.
    *
-   * @param {onrequestCallback} onrequest
+   * @param {onrequestCallback} onRequest
    */
-  setRequestHandler (onrequest) {
-    this._onrequest = (data) => onrequest(data)
+  setRequestHandler (onRequest) {
+    this._onRequest = async (data) => onRequest(data)
     return this
   }
 
-  _onrequest () {}
+  async _onRequest () {
+    throw new Error('missing handler for incoming requests')
+  }
 
   [kInit] () {
     this[kSubscription] = this._subscribe(async message => {
@@ -145,7 +152,7 @@ class Nanomessage {
         response: true,
         timeout: this[kTimeout],
         task: async (id, data) => {
-          data = await this._onrequest(data)
+          data = await this._onRequest(data)
           await this._send(this[kEncode](id, data, true))
           request.resolve()
         },
@@ -165,7 +172,7 @@ class Nanomessage {
 
   [kEncode] (id, data, response) {
     try {
-      if (!id) throw new Error('The nmId is required.')
+      if (!id) throw new Error('the nmId is required.')
       const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmResponse: response })
       return chunk
     } catch (err) {
@@ -190,35 +197,39 @@ class Nanomessage {
 /**
  * Create a nanomessage from a socket.
  *
- * @param {DuplexStream} socket
+ * @param {DuplexStream} stream
  * @param {NanomessageOptions} [opts]
  * @returns {Nanomessage}
  */
-function createFromSocket (socket, options = {}) {
+function createFromStream (stream, options = {}) {
   const nm = new Nanomessage(Object.assign({
     subscribe (ondata) {
-      socket.on('data', async (data) => {
+      stream.on('data', async (data) => {
         try {
           await ondata(data)
         } catch (err) {
-          socket.emit('nanomessage-error', err)
+          process.nextTick(() => stream.emit('error', err))
         }
       })
     },
     send (chunk) {
-      socket.write(chunk)
+      if (stream.destroyed) return
+      return new Promise((resolve, reject) => stream.write(chunk, err => {
+        if (err) return reject(err)
+        resolve()
+      }))
     },
     close () {
-      if (socket.destroyed) return
-      return new Promise(resolve => socket.destroy(null, resolve))
+      if (stream.destroyed) return
+      return new Promise(resolve => stream.destroy(null, resolve))
     }
   }, options))
 
-  socket.on('close', () => {
+  stream.on('close', () => {
     nm.close()
   })
 
-  nm.socket = socket
+  nm.stream = stream
 
   return nm
 }
@@ -232,6 +243,6 @@ function createFromSocket (socket, options = {}) {
  */
 const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
-nanomessage.createFromSocket = createFromSocket
+nanomessage.createFromStream = createFromStream
 nanomessage.symbols = { kRequests, kTimeout, kInit, kSubscription, kCodec, kEncode, kDecode }
 module.exports = nanomessage

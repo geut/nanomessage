@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "hyperid": "^2.0.2",
+    "nanocustomassert": "^1.0.0",
     "nanoerror": "^1.0.0"
   },
   "devDependencies": {
