@@ -121,11 +121,11 @@ class CustomNanomessage exports Nanomessage {
 
 #### `nm.open() -> Promise`
 
-Opens nanomessage and start listening for incomming data.
+Opens nanomessage and start listening for incoming data.
 
 #### `nm.close() -> Promise`
 
-Closes nanomessage and unsubscribe from incomming data.
+Closes nanomessage and unsubscribe from incoming data.
 
 #### `nm.request(data) -> Promise<Response>`
 
