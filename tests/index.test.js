@@ -24,13 +24,7 @@ const createConnection = (aliceOpts = { onRequest () {} }, bobOpts = { onRequest
 }
 
 test('configuration', () => {
-  class CustomSend extends nanomessage.Nanomessage {
-    _send () {}
-  }
-
   expect(() => nanomessage()).toThrow(/send is required/)
-  expect(() => nanomessage({ send: () => {} })).toThrow(/subscribe is required/)
-  expect(() => new CustomSend()).toThrow(/subscribe is required/)
 })
 
 test('simple', async () => {

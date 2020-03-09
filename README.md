@@ -37,7 +37,7 @@ server.on('connection', function connection (ws) {
       console.log(msg)
       return 'pong from Alice'
     }
-  })
+  }).listen()
 })
 
 // Client
@@ -52,7 +52,7 @@ const Bob = nanomessage({
     }
     ws.send(msg)
   }
-})
+}).listen()
 
 ;(async () => {
   console.log(await Bob.request('ping from Bob'))
@@ -91,8 +91,8 @@ Create a new nanomessage.
 
 Options include:
 
-- `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
 - `send: (chunk: Buffer) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
+- `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
 - `onRequest: (msg) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise<*>`: Defines a function to run after the nanomessage instance was close.
 - `timeout: 10 * 1000`: Time to wait for the response of a request.
@@ -117,6 +117,10 @@ class CustomNanomessage exports Nanomessage {
   async _close () {}
 }
 ```
+
+#### `nm.listen(listener = this._subscribe)`
+
+Create a subscription to listen for incomming data.
 
 #### `nm.request(data) -> Promise<Response>`
 
