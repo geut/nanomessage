@@ -59,6 +59,7 @@ const {
 const kRequests = Symbol('nanomessage.requests')
 const kTimeout = Symbol('nanomessage.timeout')
 const kSubscriptions = Symbol('nanomessage.subscriptions')
+const kMessageHandler = Symbol('nanomessage.messagehandler')
 const kCodec = Symbol('nanomessage.codec')
 const kEncode = Symbol('nanomessage.encode')
 const kDecode = Symbol('nanomessage.decode')
@@ -85,6 +86,7 @@ class Nanomessage extends EventEmitter {
     this[kRequests] = new Map()
     this[kSubscriptions] = new Set()
     this[kCodec] = codec
+    this[kMessageHandler] = this[kMessageHandler].bind(this)
   }
 
   /*
@@ -94,40 +96,9 @@ class Nanomessage extends EventEmitter {
    */
   listen (listener) {
     assert(listener || this._subscribe, 'a listener is required')
+    listener = listener || (onData => this._subscribe(onData))
 
-    this[kSubscriptions].add((listener || this._subscribe)(async message => {
-      const { nmId, nmData, nmResponse } = this[kDecode](message)
-
-      // Answer
-      if (nmResponse) {
-        const request = this[kRequests].get(nmId)
-        if (request) request[Request.symbols.kResolve](nmData)
-        return
-      }
-
-      const request = new Request({
-        id: nmId,
-        data: nmData,
-        response: true,
-        timeout: this[kTimeout],
-        task: async (id, data, response) => {
-          this.emit('request-received', data)
-          data = await this._onRequest(data)
-          await this._send(this[kEncode](id, data, response))
-          request[Request.symbols.kResolve]()
-        },
-        onFinally: (req) => {
-          this[kEndRequest](req)
-        }
-      })
-      this[kRequests].set(request.id, request)
-
-      try {
-        await request
-      } catch (err) {
-        throw new NMSG_ERR_RESPONSE(nmId, err.message)
-      }
-    }) || (() => {}))
+    this[kSubscriptions].add(listener(this[kMessageHandler]) || (() => {}))
 
     return this
   }
@@ -213,6 +184,40 @@ class Nanomessage extends EventEmitter {
     if (request.task) this.emit('task-pending', request)
     this.emit('request-ended', request.id)
   }
+
+  async [kMessageHandler] (message) {
+    const { nmId, nmData, nmResponse } = this[kDecode](message)
+
+    // Answer
+    if (nmResponse) {
+      const request = this[kRequests].get(nmId)
+      if (request) request[Request.symbols.kResolve](nmData)
+      return
+    }
+
+    const request = new Request({
+      id: nmId,
+      data: nmData,
+      response: true,
+      timeout: this[kTimeout],
+      task: async (id, data, response) => {
+        this.emit('request-received', data)
+        data = await this._onRequest(data)
+        await this._send(this[kEncode](id, data, response))
+        request[Request.symbols.kResolve]()
+      },
+      onFinally: (req) => {
+        this[kEndRequest](req)
+      }
+    })
+    this[kRequests].set(request.id, request)
+
+    try {
+      await request
+    } catch (err) {
+      throw new NMSG_ERR_RESPONSE(nmId, err.message)
+    }
+  }
 }
 
 /**
@@ -267,5 +272,5 @@ function createFromStream (stream, options = {}) {
 const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
 nanomessage.createFromStream = createFromStream
-nanomessage.symbols = { kRequests, kTimeout, kSubscriptions, kCodec, kEncode, kDecode }
+nanomessage.symbols = { kRequests, kTimeout, kSubscriptions, kMessageHandler, kCodec, kEncode, kDecode }
 module.exports = nanomessage
