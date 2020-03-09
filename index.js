@@ -289,4 +289,5 @@ const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
 nanomessage.createFromStream = createFromStream
 nanomessage.symbols = { kRequests, kTimeout, kUnsubscribe, kMessageHandler, kCodec, kEncode, kDecode, kOpen, kClose }
+nanomessage.errors = require('./lib/errors')
 module.exports = nanomessage
