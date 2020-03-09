@@ -19,13 +19,14 @@
     "end-of-stream": "^1.4.4",
     "hyperid": "^2.0.2",
     "nanocustomassert": "^1.0.0",
-    "nanoerror": "^1.0.0"
+    "nanoerror": "^1.0.0",
+    "nanoresource-promise": "^1.0.0"
   },
   "devDependencies": {
     "@geut/chan": "^2.0.0",
     "@geut/xd": "^1.5.0",
     "duplexify": "^4.1.1",
-    "jest": "^24.8.0",
+    "jest": "^25.1.0",
     "standard": "^14.3.1",
     "through2": "^3.0.1",
     "ws": "^7.2.0"

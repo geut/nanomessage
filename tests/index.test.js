@@ -120,7 +120,9 @@ test('close', async (done) => {
 
   expect(bob[kRequests].size).toBe(1)
 
-  process.nextTick(() => expect(bob.close()).resolves.toBeUndefined())
+  process.nextTick(() => {
+    expect(bob.close()).resolves.toBeUndefined()
+  })
 
   await closing
 

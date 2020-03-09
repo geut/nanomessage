@@ -16,7 +16,7 @@ server.on('connection', function connection (ws) {
       console.log(msg)
       return 'pong from Alice'
     }
-  }).listen()
+  }).open().catch(err => console.error(err))
 })
 
 // Client
@@ -31,7 +31,9 @@ const Bob = nanomessage({
     }
     ws.send(msg)
   }
-}).listen()
+})
+
+Bob.open().catch(err => console.error(err))
 
 ;(async () => {
   console.log(await Bob.request('ping from Bob'))

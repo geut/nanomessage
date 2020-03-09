@@ -37,7 +37,7 @@ server.on('connection', function connection (ws) {
       console.log(msg)
       return 'pong from Alice'
     }
-  }).listen()
+  }).open().catch(err => console.error(err))
 })
 
 // Client
@@ -52,9 +52,10 @@ const Bob = nanomessage({
     }
     ws.send(msg)
   }
-}).listen()
+})
 
 ;(async () => {
+  await Bob.open()
   console.log(await Bob.request('ping from Bob'))
 })()
 ```
@@ -118,9 +119,13 @@ class CustomNanomessage exports Nanomessage {
 }
 ```
 
-#### `nm.listen(listener = this._subscribe)`
+#### `nm.open() -> Promise`
 
-Create a subscription to listen for incomming data.
+Opens nanomessage and start listening for incomming data.
+
+#### `nm.close() -> Promise`
+
+Closes nanomessage and unsubscribe from incomming data.
 
 #### `nm.request(data) -> Promise<Response>`
 
