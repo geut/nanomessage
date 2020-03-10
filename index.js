@@ -183,7 +183,11 @@ class Nanomessage extends EventEmitter {
   [kDecode] (message) {
     try {
       const request = this[kCodec].decode(message)
-      if (!request.nmId) throw new NMSG_ERR_INVALID_REQUEST()
+      if (!request.nmId) {
+        const err = new NMSG_ERR_INVALID_REQUEST()
+        err.request = request
+        throw err
+      }
       return request
     } catch (err) {
       if (err instanceof NMSG_ERR_INVALID_REQUEST) {
