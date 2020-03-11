@@ -20,7 +20,8 @@
     "hyperid": "^2.0.2",
     "nanocustomassert": "^1.0.0",
     "nanoerror": "^1.0.0",
-    "nanoresource-promise": "^1.0.0"
+    "nanoresource-promise": "^1.0.0",
+    "p-queue": "^6.3.0"
   },
   "devDependencies": {
     "@geut/chan": "^2.0.0",
