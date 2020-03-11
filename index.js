@@ -2,7 +2,7 @@
  * @typedef {object} NanomessageOptions
  * @property {send} [opts.send]
  * @property {subscribe} [opts.subscribe]
- * @property {onRequest} [opts.onRequest]
+ * @property {onMessage} [opts.onMessage]
  * @property {close} [opts.close]
  * @property {number} [opts.timeout=10000]
  * @property {Codec} [opts.codec=json]
@@ -31,7 +31,7 @@
 
 /**
  * Request handler.
- * @callback onRequest
+ * @callback onMessage
  * @param {!Buffer} data
  * @returns {Promise<*>} - Response with any data.
  */
@@ -77,13 +77,13 @@ class Nanomessage extends EventEmitter {
   constructor (opts = {}) {
     super()
 
-    const { subscribe, send, onRequest, close, timeout = 10 * 1000, codec = defaultCodec } = opts
+    const { subscribe, send, onMessage, close, timeout = 10 * 1000, codec = defaultCodec } = opts
 
     assert(this._send || send, 'send is required')
 
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
-    if (onRequest) this.setRequestHandler(onRequest)
+    if (onMessage) this.setMessageHandler(onMessage)
     if (close) this._close = close
 
     this[kTimeout] = timeout
@@ -102,6 +102,7 @@ class Nanomessage extends EventEmitter {
   /**
    * Send a new request and wait for a response.
    *
+   * @async
    * @param {*} data - Data to be send it.
    * @returns {Request<*>} Returns the remote response.
    */
@@ -111,7 +112,7 @@ class Nanomessage extends EventEmitter {
       timeout: this[kTimeout],
       task: async (id, data) => {
         await this.open()
-        await this._send(this[kEncode](id, data))
+        await this._send(this[kEncode]({ id, data }))
       },
       onFinally: (req) => {
         this[kEndRequest](req)
@@ -121,6 +122,17 @@ class Nanomessage extends EventEmitter {
     this.emit('request-sended', request)
 
     return request
+  }
+
+  /**
+   * Send a ephemeral message
+   *
+   * @param {*} data - Data to be send it.
+   * @returns {Promise}
+   */
+  async send (data) {
+    await this.open()
+    await this._send(this[kEncode]({ id: Request.uuid(), data, ephemeral: true }))
   }
 
   /**
@@ -143,14 +155,14 @@ class Nanomessage extends EventEmitter {
   /**
    * Defines the request handler.
    *
-   * @param {onrequestCallback} onRequest
+   * @param {onrequestCallback} onMessage
    */
-  setRequestHandler (onRequest) {
-    this._onRequest = onRequest
+  setMessageHandler (onMessage) {
+    this._onMessage = onMessage
     return this
   }
 
-  async _onRequest () {
+  async _onMessage () {
     throw new Error('missing handler for incoming requests')
   }
 
@@ -174,10 +186,10 @@ class Nanomessage extends EventEmitter {
     this.emit('closed')
   }
 
-  [kEncode] (id, data, response) {
+  [kEncode] ({ id, data, response, ephemeral }) {
     try {
       if (!id) throw new Error('the nmId is required.')
-      const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmResponse: response })
+      const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmResponse: response, nmEphemeral: ephemeral })
       return chunk
     } catch (err) {
       throw new NMSG_ERR_ENCODE(err.message)
@@ -208,7 +220,16 @@ class Nanomessage extends EventEmitter {
   }
 
   async [kMessageHandler] (message) {
-    const { nmId, nmData, nmResponse } = this[kDecode](message)
+    const { nmId, nmData, nmResponse, nmEphemeral } = this[kDecode](message)
+
+    if (nmEphemeral) {
+      try {
+        await this._onMessage(nmData, nmEphemeral)
+      } catch (err) {
+        console.error(err)
+      }
+      return
+    }
 
     // Answer
     if (nmResponse) {
@@ -224,8 +245,8 @@ class Nanomessage extends EventEmitter {
       timeout: this[kTimeout],
       task: async (id, data, response) => {
         this.emit('request-received', data)
-        data = await this._onRequest(data)
-        await this._send(this[kEncode](id, data, response))
+        data = await this._onMessage(data)
+        await this._send(this[kEncode]({ id, data, response }))
         request[Request.symbols.kResolve]()
       },
       onFinally: (req) => {

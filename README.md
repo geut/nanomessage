@@ -32,7 +32,7 @@ server.on('connection', function connection (ws) {
       // Define how to send data
       ws.send(msg)
     },
-    onRequest (msg) {
+    onMessage (msg) {
       // Process the new request and return a response
       console.log(msg)
       return 'pong from Alice'
@@ -68,7 +68,7 @@ const { createFromStream } = require('..')
 
 const Alice = net.createServer(socket => {
   createFromStream(socket, {
-    onRequest (msg) {
+    onMessage (msg) {
       console.log(msg)
       return 'pong from Alice'
     }
@@ -94,7 +94,7 @@ Options include:
 
 - `send: (chunk: Buffer) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
-- `onRequest: (msg) -> Promise<Response>`: Async handler to process the incoming requests.
+- `onMessage: (msg) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise<*>`: Defines a function to run after the nanomessage instance was close.
 - `timeout: 10 * 1000`: Time to wait for the response of a request.
 - `codec: JSON`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
@@ -113,7 +113,7 @@ class CustomNanomessage exports Nanomessage {
 
   async _send (chunk) {}
 
-  async _onRequest (msg) {}
+  async _onMessage (msg) {}
 
   async _close () {}
 }
@@ -131,7 +131,11 @@ Closes nanomessage and unsubscribe from incoming data.
 
 Send a request and wait for a response. `data` can be any serializable type supported by your codec.
 
-#### `nm.setRequestHandler(handler) -> Nanomessage`
+#### `nm.send(data) -> Promise<Response>`
+
+Send a `ephemeral` message. `data` can be any serializable type supported by your codec.
+
+#### `nm.setMessageHandler(handler) -> Nanomessage`
 
 Defines a request handler. It will override the old handler.
 

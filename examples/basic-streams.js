@@ -7,7 +7,7 @@ const t2 = through()
 
 // Alice
 createFromSocket(duplexify(t1, t2), {
-  onrequest: data => {
+  onMessage: data => {
     console.log(data)
     return 'pong from alice!'
   }

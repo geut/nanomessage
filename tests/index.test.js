@@ -10,7 +10,7 @@ const {
 
 const { createFromStream, symbols: { kRequests } } = nanomessage
 
-const createConnection = (aliceOpts = { onRequest () {} }, bobOpts = { onRequest () {} }) => {
+const createConnection = (aliceOpts = { onMessage () {} }, bobOpts = { onMessage () {} }) => {
   const t1 = through()
   const t2 = through()
 
@@ -32,13 +32,13 @@ test('simple', async () => {
 
   const { alice, bob } = createConnection(
     {
-      onRequest: (data) => {
+      onMessage: (data) => {
         expect(data).toEqual(Buffer.from('ping from bob'))
         return Buffer.from('pong from alice')
       }
     },
     {
-      onRequest: (data) => {
+      onMessage: (data) => {
         expect(data).toBe('ping from alice')
         return 'pong from bob'
       }
@@ -52,7 +52,7 @@ test('simple', async () => {
 test('timeout', async () => {
   const { bob } = createConnection(
     {
-      onRequest: async () => {
+      onMessage: async () => {
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
     },
@@ -68,7 +68,7 @@ test('timeout', async () => {
 test('cancel', async () => {
   const { bob } = createConnection(
     {
-      onRequest: async () => {
+      onMessage: async () => {
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
     },
@@ -84,9 +84,9 @@ test('cancel', async () => {
 
 test('automatic cleanup requests', async () => {
   const { bob } = createConnection({
-    onRequest () {}
+    onMessage () {}
   }, {
-    onRequest () {}
+    onMessage () {}
   })
 
   expect(bob[kRequests].size).toBe(0)
@@ -141,4 +141,31 @@ test('detect invalid request', async () => {
 
   bob.stream.write(Buffer.from(JSON.stringify({ msg: 'not valid' })))
   bob.stream.write('not valid')
+})
+
+test('send ephemeral message', async (done) => {
+  expect.assertions(4)
+
+  let messages = 2
+
+  const { alice, bob } = createConnection(
+    {
+      onMessage: (data, ephemeral) => {
+        expect(ephemeral).toBe(true)
+        expect(data).toEqual(Buffer.from('ping from bob'))
+        messages--
+        if (messages === 0) done()
+      }
+    },
+    {
+      onMessage: (data, ephemeral) => {
+        expect(ephemeral).toBe(true)
+        expect(data).toBe('ping from alice')
+        messages--
+        if (messages === 0) done()
+      }
+    }
+  )
+  await alice.send('ping from alice')
+  await bob.send(Buffer.from('ping from bob'))
 })
