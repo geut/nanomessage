@@ -95,6 +95,10 @@ class Nanomessage extends EventEmitter {
     })
   }
 
+  get codec () {
+    return this[kCodec]
+  }
+
   /**
    * Send a new request and wait for a response.
    *
