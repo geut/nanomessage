@@ -63,7 +63,6 @@ const kRequests = Symbol('nanomessage.requests')
 const kQueue = Symbol('nanomessage.queue')
 const kUnsubscribe = Symbol('nanomessage.unsubscribe')
 const kMessageHandler = Symbol('nanomessage.messagehandler')
-const kCodec = Symbol('nanomessage.codec')
 const kEncode = Symbol('nanomessage.encode')
 const kDecode = Symbol('nanomessage.decode')
 const kEndRequest = Symbol('nanomessage.endrequest')
@@ -87,23 +86,18 @@ class Nanomessage extends EventEmitter {
     if (subscribe) this._subscribe = subscribe
     if (onMessage) this.setMessageHandler(onMessage)
     if (close) this._close = close
+    this.codec = codec
 
     this[kQueue] = new PQueue({
       concurrency,
       timeout,
       throwOnTimeout: true
     })
-
     this[kRequests] = new Map()
-    this[kCodec] = codec
     this[kNanoresource] = nanoresource({
       open: this[kOpen].bind(this),
       close: this[kClose].bind(this)
     })
-  }
-
-  get codec () {
-    return this[kCodec]
   }
 
   /**
@@ -204,7 +198,7 @@ class Nanomessage extends EventEmitter {
   [kEncode] ({ id, data, response, ephemeral }) {
     try {
       if (!id) throw new Error('the nmId is required.')
-      const chunk = this[kCodec].encode({ nmId: id, nmData: data, nmResponse: response, nmEphemeral: ephemeral })
+      const chunk = this.codec.encode({ nmId: id, nmData: data, nmResponse: response, nmEphemeral: ephemeral })
       return chunk
     } catch (err) {
       throw new NMSG_ERR_ENCODE(err.message)
@@ -213,7 +207,7 @@ class Nanomessage extends EventEmitter {
 
   [kDecode] (message) {
     try {
-      const request = this[kCodec].decode(message)
+      const request = this.codec.decode(message)
       if (!request.nmId) {
         const err = new NMSG_ERR_INVALID_REQUEST()
         err.request = request
@@ -339,6 +333,6 @@ function createFromStream (stream, options = {}) {
 const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
 nanomessage.createFromStream = createFromStream
-nanomessage.symbols = { kRequests, kQueue, kUnsubscribe, kMessageHandler, kCodec, kEncode, kDecode, kOpen, kClose }
+nanomessage.symbols = { kRequests, kQueue, kUnsubscribe, kMessageHandler, kEncode, kDecode, kOpen, kClose }
 nanomessage.errors = require('./lib/errors')
 module.exports = nanomessage
