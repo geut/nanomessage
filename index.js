@@ -161,6 +161,8 @@ class Nanomessage extends NanoresourcePromise {
   async _close () {
     if (this[kUnsubscribe]) this[kUnsubscribe]()
 
+    this[kQueue].pause()
+
     this[kRequests].forEach(request => {
       request.reject(new NMSG_ERR_CLOSE())
     })
