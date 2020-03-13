@@ -42,10 +42,9 @@
  * @returns {Promise<*>} - Response with any data.
  */
 
-const { EventEmitter } = require('events')
 const assert = require('nanocustomassert')
 const eos = require('end-of-stream')
-const nanoresource = require('nanoresource-promise')
+const { NanoresourcePromise } = require('nanoresource-promise/emitter')
 const { default: PQueue } = require('p-queue')
 
 const Request = require('./lib/request')
@@ -66,11 +65,9 @@ const kMessageHandler = Symbol('nanomessage.messagehandler')
 const kEncode = Symbol('nanomessage.encode')
 const kDecode = Symbol('nanomessage.decode')
 const kEndRequest = Symbol('nanomessage.endrequest')
-const kNanoresource = Symbol('nanomessage.nanoresource')
-const kOpen = Symbol('nanomessage.open')
 const kClose = Symbol('nanomessage.close')
 
-class Nanomessage extends EventEmitter {
+class Nanomessage extends NanoresourcePromise {
   /**
    * @constructor
    * @param {NanomessageOptions} [opts]
@@ -85,7 +82,8 @@ class Nanomessage extends EventEmitter {
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
     if (onMessage) this.setMessageHandler(onMessage)
-    if (close) this._close = close
+    if (close) this[kClose] = close
+
     this.codec = codec
 
     this[kQueue] = new PQueue({
@@ -94,10 +92,6 @@ class Nanomessage extends EventEmitter {
       throwOnTimeout: true
     })
     this[kRequests] = new Map()
-    this[kNanoresource] = nanoresource({
-      open: this[kOpen].bind(this),
-      close: this[kClose].bind(this)
-    })
   }
 
   /**
@@ -145,23 +139,6 @@ class Nanomessage extends EventEmitter {
   }
 
   /**
-   * Opens nanomessage
-   *
-   * @returns {Promise}
-   */
-  open () {
-    return this[kNanoresource].open()
-  }
-
-  /**
-   * Closes nanomessage
-   * @returns {Promise}
-   */
-  close () {
-    return this[kNanoresource].close()
-  }
-
-  /**
    * Defines the request handler.
    *
    * @param {onrequestCallback} onMessage
@@ -175,15 +152,13 @@ class Nanomessage extends EventEmitter {
     throw new Error('missing handler for incoming requests')
   }
 
-  async _close () {}
-
-  async [kOpen] () {
+  async _open () {
     assert(this._subscribe, 'subscribe is required')
 
     this[kUnsubscribe] = this._subscribe(this[kMessageHandler].bind(this))
   }
 
-  async [kClose] () {
+  async _close () {
     if (this[kUnsubscribe]) this[kUnsubscribe]()
 
     this[kRequests].forEach(request => {
@@ -191,8 +166,7 @@ class Nanomessage extends EventEmitter {
     })
 
     this[kRequests].clear()
-    await this._close()
-    this.emit('closed')
+    await (this[kClose] && this[kClose]())
   }
 
   [kEncode] ({ id, data, response, ephemeral }) {
@@ -333,6 +307,6 @@ function createFromStream (stream, options = {}) {
 const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
 nanomessage.createFromStream = createFromStream
-nanomessage.symbols = { kRequests, kQueue, kUnsubscribe, kMessageHandler, kEncode, kDecode, kOpen, kClose }
+nanomessage.symbols = { kRequests, kQueue, kUnsubscribe, kMessageHandler, kEncode, kDecode, kClose }
 nanomessage.errors = require('./lib/errors')
 module.exports = nanomessage
