@@ -94,6 +94,10 @@ class Nanomessage extends NanoresourcePromise {
     this[kRequests] = new Map()
   }
 
+  get requests () {
+    return Array.from(this[kRequests])
+  }
+
   /**
    * Send a new request and wait for a response.
    *
@@ -161,13 +165,14 @@ class Nanomessage extends NanoresourcePromise {
   async _close () {
     if (this[kUnsubscribe]) this[kUnsubscribe]()
 
-    this[kQueue].pause()
-
     this[kRequests].forEach(request => {
       request.reject(new NMSG_ERR_CLOSE())
     })
 
     this[kRequests].clear()
+    this[kQueue].clear()
+    this[kQueue].pause()
+
     await (this[kClose] && this[kClose]())
   }
 

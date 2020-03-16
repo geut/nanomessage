@@ -8,7 +8,7 @@ const {
   NMSG_ERR_CANCEL
 } = require('../lib/errors')
 
-const { createFromStream, symbols: { kRequests } } = nanomessage
+const { createFromStream } = nanomessage
 
 const createConnection = (aliceOpts = { onMessage () {} }, bobOpts = { onMessage () {} }) => {
   const t1 = through()
@@ -82,22 +82,30 @@ test('cancel', async () => {
   await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
 })
 
-test('automatic cleanup requests', async () => {
-  const { bob } = createConnection({
+test('automatic cleanup requests', async (done) => {
+  const { alice, bob } = createConnection({
     onMessage () {}
   }, {
     onMessage () {}
   })
 
-  expect(bob[kRequests].size).toBe(0)
+  expect(alice.requests.length).toBe(0)
+  expect(bob.requests.length).toBe(0)
 
-  const ten = Array.from(Array(10).keys()).map(() => bob.request('message'))
+  const aliceTen = Array.from(Array(10).keys()).map(() => bob.request('message'))
+  const bobTen = Array.from(Array(10).keys()).map(() => bob.request('message'))
 
-  expect(bob[kRequests].size).toBe(10)
+  process.nextTick(async () => {
+    expect(bob.requests.length).toBe(20)
+    expect(alice.requests.length).toBe(20)
 
-  await Promise.all(ten)
+    await Promise.all([...aliceTen, ...bobTen])
 
-  expect(bob[kRequests].size).toBe(0)
+    expect(alice.requests.length).toBe(0)
+    expect(bob.requests.length).toBe(0)
+
+    done()
+  })
 })
 
 test('close', async (done) => {
@@ -118,7 +126,7 @@ test('close', async (done) => {
     expect(request.id).toBe(req.id)
   })
 
-  expect(bob[kRequests].size).toBe(1)
+  expect(bob.requests.length).toBe(1)
 
   process.nextTick(() => {
     expect(bob.close()).resolves.toBeUndefined()
@@ -126,7 +134,7 @@ test('close', async (done) => {
 
   await closing
 
-  expect(bob[kRequests].size).toBe(0)
+  expect(bob.requests.length).toBe(0)
 })
 
 test('detect invalid request', async () => {
