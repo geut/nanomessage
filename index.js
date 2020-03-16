@@ -226,6 +226,7 @@ class Nanomessage extends NanoresourcePromise {
     const request = new Request({
       id: nmId,
       task: async (id) => {
+        await this.open()
         this.emit('request-received', nmData)
         const data = await this._onMessage(nmData)
         await this._send(this[kEncode]({ id, data, response: true }))
