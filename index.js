@@ -219,7 +219,7 @@ class Nanomessage extends NanoresourcePromise {
       try {
         await this._onMessage(nmData, nmEphemeral)
       } catch (err) {
-        console.error(err)
+        this.emit('ephemeral-error', err)
       }
       return
     }
