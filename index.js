@@ -84,7 +84,10 @@ class Nanomessage extends NanoresourcePromise {
     if (onMessage) this.setMessageHandler(onMessage)
     if (close) this[kClose] = close
 
-    this.codec = codec
+    this.codec = {
+      encode: val => codec.encode(val),
+      decode: buf => codec.decode(buf)
+    }
 
     this[kQueue] = new PQueue({
       concurrency,
