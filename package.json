@@ -19,7 +19,7 @@
     "end-of-stream": "^1.4.4",
     "hyperid": "^2.0.2",
     "nanocustomassert": "^1.0.0",
-    "nanoerror": "^1.0.0",
+    "nanoerror": "^1.1.0",
     "nanoresource-promise": "^1.2.0",
     "p-queue": "^6.3.0"
   },

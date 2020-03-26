@@ -66,7 +66,7 @@ test('timeout', async () => {
 })
 
 test('cancel', async () => {
-  const { bob } = createConnection(
+  const { bob, alice } = createConnection(
     {
       onMessage: async () => {
         await new Promise(resolve => setTimeout(resolve, 2000))
@@ -77,9 +77,12 @@ test('cancel', async () => {
     }
   )
 
+  const onError = new Promise((resolve, reject) => alice.stream.once('error', reject))
+
   const request = bob.request('ping from bob')
   setTimeout(() => request.cancel(), 0)
   await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
+  await expect(onError).rejects.toThrow(/cancel/)
 })
 
 test('automatic cleanup requests', async (done) => {

@@ -55,7 +55,8 @@ const {
   NMSG_ERR_RESPONSE,
   NMSG_ERR_CLOSE,
   NMSG_ERR_INVALID_REQUEST,
-  NMSG_ERR_TIMEOUT
+  NMSG_ERR_TIMEOUT,
+  NMSG_ERR_CANCEL
 } = require('./lib/errors')
 
 const kRequests = Symbol('nanomessage.requests')
@@ -66,6 +67,7 @@ const kEncode = Symbol('nanomessage.encode')
 const kDecode = Symbol('nanomessage.decode')
 const kEndRequest = Symbol('nanomessage.endrequest')
 const kClose = Symbol('nanomessage.close')
+const kSendCancel = Symbol('nanomessage.sendcancel')
 
 class Nanomessage extends NanoresourcePromise {
   /**
@@ -127,6 +129,10 @@ class Nanomessage extends NanoresourcePromise {
       if (err.name === 'TimeoutError') {
         request.reject(new NMSG_ERR_TIMEOUT(request.id))
       }
+
+      if (NMSG_ERR_CANCEL.equals(err)) {
+        this[kSendCancel](request.id)
+      }
     })
 
     this.emit('request-sended', request)
@@ -179,10 +185,16 @@ class Nanomessage extends NanoresourcePromise {
     await (this[kClose] && this[kClose]())
   }
 
-  [kEncode] ({ id, data, response, ephemeral }) {
+  [kEncode] ({ id, data, response, ephemeral, cancel }) {
     try {
       if (!id) throw new Error('the nmId is required.')
-      const chunk = this.codec.encode({ nmId: id, nmData: data, nmResponse: response, nmEphemeral: ephemeral })
+      const chunk = this.codec.encode({
+        nmId: id,
+        nmData: data,
+        nmResponse: response,
+        nmEphemeral: ephemeral,
+        nmCancel: cancel
+      })
       return chunk
     } catch (err) {
       throw new NMSG_ERR_ENCODE(err.message)
@@ -213,7 +225,7 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   async [kMessageHandler] (message) {
-    const { nmId, nmData, nmResponse, nmEphemeral } = this[kDecode](message)
+    const { nmId, nmData, nmResponse, nmEphemeral, nmCancel = false } = this[kDecode](message)
 
     if (nmEphemeral) {
       try {
@@ -231,35 +243,57 @@ class Nanomessage extends NanoresourcePromise {
       return
     }
 
-    const request = new Request({
-      id: nmId,
-      task: async (id) => {
-        await this.open()
-        this.emit('request-received', nmData)
-        const data = await this._onMessage(nmData)
-        await this._send(this[kEncode]({ id, data, response: true }))
-        request.resolve()
-      },
-      onFinally: (req) => {
-        this[kEndRequest](req)
-      }
-    })
+    let request = this[kRequests].get(nmId)
+    if (!request) {
+      if (nmCancel) return
 
-    this[kRequests].set(request.id, request)
+      request = this[kRequests].get(nmId) || new Request({
+        id: nmId,
+        task: async (id) => {
+          if (request.finished) return
+          await this.open()
+          this.emit('request-received', nmData)
+          if (request.finished) return
+          const data = await this._onMessage(nmData)
+          if (request.finished) return
+          await this._send(this[kEncode]({ id, data, response: true }))
+          request.resolve()
+        },
+        onFinally: (req) => {
+          this[kEndRequest](req)
+        }
+      })
 
-    this[kQueue].add(() => {
-      request.start()
-      return request.promise
-    }).catch(err => {
-      if (err.name === 'TimeoutError') {
-        request.reject(new NMSG_ERR_TIMEOUT(request.id))
-      }
-    })
+      this[kRequests].set(request.id, request)
+
+      this[kQueue].add(() => {
+        request.start()
+        return request.promise
+      }).catch(err => {
+        if (err.name === 'TimeoutError') {
+          request.reject(new NMSG_ERR_TIMEOUT(request.id))
+        }
+      })
+    }
+
+    if (nmCancel) {
+      request.cancel()
+      return
+    }
 
     try {
       await request.promise
     } catch (err) {
       throw new NMSG_ERR_RESPONSE(nmId, err.message)
+    }
+  }
+
+  async [kSendCancel] (id) {
+    try {
+      await this.open()
+      await this._send(this[kEncode]({ id, cancel: true }))
+    } catch (err) {
+      //
     }
   }
 }
