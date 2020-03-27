@@ -32,7 +32,7 @@ server.on('connection', function connection (ws) {
       // Define how to send data
       ws.send(msg)
     },
-    onMessage (msg) {
+    onMessage (msg, opts) {
       // Process the new request and return a response
       console.log(msg)
       return 'pong from Alice'
@@ -68,7 +68,7 @@ const { createFromStream } = require('..')
 
 const Alice = net.createServer(socket => {
   createFromStream(socket, {
-    onMessage (msg) {
+    onMessage (msg, opts) {
       console.log(msg)
       return 'pong from Alice'
     }
@@ -92,9 +92,12 @@ Create a new nanomessage.
 
 Options include:
 
-- `send: (chunk: Buffer) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
+- `send: (chunk: Buffer, opts: Object) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
+  - `opts.onCancel: (cb) => {}`: Subscribe to the cancel request if you want to cleanup the current operation.
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
-- `onMessage: (msg) -> Promise<Response>`: Async handler to process the incoming requests.
+- `onMessage: (msg: *, opts: Object) -> Promise<Response>`: Async handler to process the incoming requests.
+  - `opts.ephemeral: boolean`: It's true if the message is an ephemeral.
+  - `opts.onCancel: (cb) => {}`: Subscribe to the cancel request if you want to cleanup the current operation.
 - `close: () -> Promise<*>`: Defines a function to run after the nanomessage instance was close.
 - `timeout: 10 * 1000`: Time to wait for the response of a request.
 - `concurrency: Infinity`: Defines how many requests do you want to run in concurrent.

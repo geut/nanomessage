@@ -26,6 +26,8 @@
  * How to send the data.
  * @callback send
  * @param {Buffer}
+ * @param {Object} opts
+ * @param {Function} opts.onCancel
  * @returns {Promise}
  */
 
@@ -33,6 +35,9 @@
  * Request handler.
  * @callback onMessage
  * @param {!Buffer} data
+ * @param {Object} opts
+ * @param {boolean} opts.ephemeral
+ * @param {Function} opts.onCancel
  * @returns {Promise<*>} - Response with any data.
  */
 
@@ -53,10 +58,10 @@ const {
   NMSG_ERR_ENCODE,
   NMSG_ERR_DECODE,
   NMSG_ERR_RESPONSE,
-  NMSG_ERR_CLOSE,
   NMSG_ERR_INVALID_REQUEST,
   NMSG_ERR_TIMEOUT,
-  NMSG_ERR_CANCEL
+  NMSG_ERR_CANCEL,
+  NMSG_ERR_CLOSE
 } = require('./lib/errors')
 
 const kRequests = Symbol('nanomessage.requests')
@@ -100,7 +105,11 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   get requests () {
-    return Array.from(this[kRequests])
+    return Array.from(this[kRequests].values())
+  }
+
+  get isFull () {
+    return this[kQueue].pending >= this[kQueue].concurrency
   }
 
   /**
@@ -112,9 +121,9 @@ class Nanomessage extends NanoresourcePromise {
    */
   request (data) {
     const request = new Request({
-      task: async (id) => {
+      task: async (id, onCancel) => {
         await this.open()
-        await this._send(this[kEncode]({ id, data }))
+        await this._send(this[kEncode]({ id, data }), { onCancel })
       },
       onFinally: (req) => {
         this[kEndRequest](req)
@@ -174,15 +183,18 @@ class Nanomessage extends NanoresourcePromise {
   async _close () {
     if (this[kUnsubscribe]) this[kUnsubscribe]()
 
+    const requestsToClose = []
     this[kRequests].forEach(request => {
+      requestsToClose.push(request.promise.catch(() => {}))
       request.reject(new NMSG_ERR_CLOSE())
     })
-
     this[kRequests].clear()
+
     this[kQueue].clear()
     this[kQueue].pause()
 
     await (this[kClose] && this[kClose]())
+    await Promise.all(requestsToClose)
   }
 
   [kEncode] ({ id, data, response, ephemeral, cancel }) {
@@ -229,7 +241,7 @@ class Nanomessage extends NanoresourcePromise {
 
     if (nmEphemeral) {
       try {
-        await this._onMessage(nmData, nmEphemeral)
+        await this._onMessage(nmData, { ephemeral: nmEphemeral })
       } catch (err) {
         this.emit('ephemeral-error', err)
       }
@@ -245,18 +257,18 @@ class Nanomessage extends NanoresourcePromise {
 
     let request = this[kRequests].get(nmId)
     if (!request) {
-      if (nmCancel) return
+      if (nmCancel) throw new NMSG_ERR_CANCEL(nmId)
 
       request = this[kRequests].get(nmId) || new Request({
         id: nmId,
-        task: async (id) => {
+        task: async (id, onCancel) => {
           if (request.finished) return
           await this.open()
+          if (request.finished) return
           this.emit('request-received', nmData)
+          const data = await this._onMessage(nmData, { onCancel })
           if (request.finished) return
-          const data = await this._onMessage(nmData)
-          if (request.finished) return
-          await this._send(this[kEncode]({ id, data, response: true }))
+          await this._send(this[kEncode]({ id, data, response: true }), { onCancel })
           request.resolve()
         },
         onFinally: (req) => {
@@ -290,11 +302,8 @@ class Nanomessage extends NanoresourcePromise {
 
   async [kSendCancel] (id) {
     try {
-      await this.open()
       await this._send(this[kEncode]({ id, cancel: true }))
-    } catch (err) {
-      //
-    }
+    } catch (err) {}
   }
 }
 
@@ -312,7 +321,7 @@ function createFromStream (stream, options = {}) {
         try {
           await ondata(data)
         } catch (err) {
-          process.nextTick(() => stream.emit('error', err))
+          nm.emit('subscribe-error', err)
         }
       })
     },
@@ -329,9 +338,7 @@ function createFromStream (stream, options = {}) {
     }
   }, options))
 
-  nm.open().catch(err => {
-    process.nextTick(() => stream.emit('error', err))
-  })
+  nm.open().catch(() => {})
 
   stream.on('close', () => {
     nm.close()

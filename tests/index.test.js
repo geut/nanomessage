@@ -4,8 +4,8 @@ const duplexify = require('duplexify')
 const nanomessage = require('..')
 const {
   NMSG_ERR_TIMEOUT,
-  NMSG_ERR_CLOSE,
-  NMSG_ERR_CANCEL
+  NMSG_ERR_CANCEL,
+  NMSG_ERR_CLOSE
 } = require('../lib/errors')
 
 const { createFromStream } = nanomessage
@@ -50,6 +50,8 @@ test('simple', async () => {
 })
 
 test('timeout', async () => {
+  expect.assertions(1)
+
   const { bob } = createConnection(
     {
       onMessage: async () => {
@@ -66,9 +68,14 @@ test('timeout', async () => {
 })
 
 test('cancel', async () => {
+  expect.assertions(3)
+
+  const _onCancel = jest.fn()
+
   const { bob, alice } = createConnection(
     {
-      onMessage: async () => {
+      onMessage: async (msg, { onCancel }) => {
+        onCancel(_onCancel)
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
     },
@@ -77,15 +84,18 @@ test('cancel', async () => {
     }
   )
 
-  const onError = new Promise((resolve, reject) => alice.stream.once('error', reject))
+  const onError = new Promise((resolve, reject) => alice.once('subscribe-error', reject))
 
   const request = bob.request('ping from bob')
   setTimeout(() => request.cancel(), 0)
   await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
   await expect(onError).rejects.toThrow(/cancel/)
+  expect(_onCancel).toHaveBeenCalledTimes(1)
 })
 
 test('automatic cleanup requests', async (done) => {
+  expect.assertions(6)
+
   const { alice, bob } = createConnection({
     onMessage () {}
   }, {
@@ -116,7 +126,7 @@ test('close', async (done) => {
 
   const { alice, bob } = createConnection()
 
-  alice.stream.once('error', err => {
+  alice.once('subscribe-error', err => {
     expect(err.code).toBe('NMSG_ERR_RESPONSE')
     done()
   })
@@ -140,13 +150,16 @@ test('close', async (done) => {
   expect(bob.requests.length).toBe(0)
 })
 
-test('detect invalid request', async () => {
+test('detect invalid request', (done) => {
+  expect.assertions(2)
+
   const { alice, bob } = createConnection()
 
-  alice.stream.once('error', err => {
+  alice.once('subscribe-error', err => {
     expect(err.code).toBe('NMSG_ERR_INVALID_REQUEST')
-    alice.stream.once('error', err => {
+    alice.once('subscribe-error', err => {
       expect(err.code).toBe('NMSG_ERR_DECODE')
+      done()
     })
   })
 
@@ -161,22 +174,46 @@ test('send ephemeral message', async (done) => {
 
   const { alice, bob } = createConnection(
     {
-      onMessage: (data, ephemeral) => {
+      onMessage: (data, { ephemeral }) => {
         expect(ephemeral).toBe(true)
         expect(data).toEqual(Buffer.from('ping from bob'))
         messages--
-        if (messages === 0) done()
+        if (messages === 0) {
+          done()
+        }
       }
     },
     {
-      onMessage: (data, ephemeral) => {
+      onMessage: (data, { ephemeral }) => {
         expect(ephemeral).toBe(true)
         expect(data).toBe('ping from alice')
         messages--
-        if (messages === 0) done()
+        if (messages === 0) {
+          done()
+        }
       }
     }
   )
   await alice.send('ping from alice')
   await bob.send(Buffer.from('ping from bob'))
+})
+
+test('concurrency', async () => {
+  expect.assertions(1)
+
+  const { alice, bob } = createConnection(
+    {
+      concurrency: 2
+    },
+    {
+      concurrency: 2
+    }
+  )
+
+  alice.request('ping from alice').catch(() => {})
+  alice.request('ping from alice').catch(() => {})
+
+  expect(alice.isFull).toBe(true)
+
+  await Promise.all([alice.close(), bob.close()])
 })
