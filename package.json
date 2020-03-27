@@ -1,6 +1,6 @@
 {
   "name": "nanomessage",
-  "version": "5.2.5",
+  "version": "5.3.0",
   "description": "Simple module that helps you to build a `request-response` abstraction on top of any other solution (e.g. streams).",
   "main": "index.js",
   "files": [
