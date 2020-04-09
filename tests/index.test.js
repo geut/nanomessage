@@ -121,15 +121,15 @@ test('automatic cleanup requests', async (done) => {
   })
 })
 
-test('close', async (done) => {
+test('close', async () => {
   expect.assertions(6)
 
   const { alice, bob } = createConnection()
 
-  alice.once('subscribe-error', err => {
+  const waitForSubscribeError = new Promise(resolve => alice.once('subscribe-error', err => {
     expect(err.code).toBe('NMSG_ERR_RESPONSE')
-    done()
-  })
+    resolve()
+  }))
 
   const request = bob.request('message')
 
@@ -141,11 +141,15 @@ test('close', async (done) => {
 
   expect(bob.requests.length).toBe(1)
 
-  process.nextTick(() => {
-    expect(bob.close()).resolves.toBeUndefined()
-  })
-
-  await closing
+  await Promise.all([
+    closing,
+    waitForSubscribeError,
+    new Promise((resolve, reject) => {
+      process.nextTick(() => {
+        expect(bob.close()).resolves.toBeUndefined().then(resolve).catch(reject)
+      })
+    })
+  ])
 
   expect(bob.requests.length).toBe(0)
 })
