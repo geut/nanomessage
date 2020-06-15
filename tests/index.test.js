@@ -1,44 +1,39 @@
-const through = require('through2')
-const duplexify = require('duplexify')
+const create = require('./create')
 
 const nanomessage = require('..')
+
 const {
   NMSG_ERR_TIMEOUT,
   NMSG_ERR_CANCEL,
   NMSG_ERR_CLOSE
 } = require('../lib/errors')
 
-const { createFromStream } = nanomessage
-
-const createConnection = (aliceOpts = { onMessage () {} }, bobOpts = { onMessage () {} }) => {
-  const t1 = through()
-  const t2 = through()
-
-  const stream1 = duplexify(t1, t2)
-  const alice = createFromStream(stream1, aliceOpts)
-
-  const stream2 = duplexify(t2, t1)
-  const bob = createFromStream(stream2, bobOpts)
-
-  return { alice, bob }
-}
-
 test('configuration', () => {
   expect(() => nanomessage()).toThrow(/send is required/)
 })
 
 test('simple', async () => {
-  expect.assertions(4)
+  expect.assertions(14)
 
-  const { alice, bob } = createConnection(
+  const onSend = jest.fn()
+
+  const [alice, bob] = create(
     {
-      onMessage: (data) => {
+      onMessage: (data, info) => {
+        expect(info.id).not.toBeUndefined()
+        expect(info.ephemeral).toBe(false)
+        expect(info.response).toBe(true)
         expect(data).toEqual(Buffer.from('ping from bob'))
         return Buffer.from('pong from alice')
+      },
+      onSend: (data, info) => {
+        expect(Buffer.isBuffer(data)).toBe(true)
+        expect(info.id).not.toBeUndefined()
+        onSend({ ...info, id: undefined })
       }
     },
     {
-      onMessage: (data) => {
+      onMessage: (data, info) => {
         expect(data).toBe('ping from alice')
         return 'pong from bob'
       }
@@ -47,56 +42,51 @@ test('simple', async () => {
 
   await expect(alice.request('ping from alice')).resolves.toBe('pong from bob')
   await expect(bob.request(Buffer.from('ping from bob'))).resolves.toEqual(Buffer.from('pong from alice'))
+
+  expect(onSend).toHaveBeenCalledTimes(2)
+  expect(onSend).toHaveBeenNthCalledWith(1, { data: 'ping from alice', ephemeral: false, response: false })
+  expect(onSend).toHaveBeenNthCalledWith(2, { data: Buffer.from('ping from bob'), responseData: Buffer.from('pong from alice'), ephemeral: false, response: true })
 })
 
 test('timeout', async () => {
   expect.assertions(1)
 
-  const { bob } = createConnection(
+  const [alice] = create(
+    {
+      timeout: 1000
+    },
     {
       onMessage: async () => {
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
-    },
-    {
-      timeout: 1000
     }
   )
 
-  const request = bob.request('ping from bob')
+  const request = alice.request('ping')
   await expect(request).rejects.toThrow(NMSG_ERR_TIMEOUT)
 })
 
 test('cancel', async () => {
-  expect.assertions(3)
+  expect.assertions(1)
 
-  const _onCancel = jest.fn()
-
-  const { bob, alice } = createConnection(
+  const [alice] = create(
+    {},
     {
-      onMessage: async (msg, { onCancel }) => {
-        onCancel(_onCancel)
-        await new Promise(resolve => setTimeout(resolve, 2000))
+      onMessage: async () => {
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
-    },
-    {
-      timeout: 1000
     }
   )
 
-  const onError = new Promise((resolve, reject) => alice.once('subscribe-error', reject))
-
-  const request = bob.request('ping from bob')
-  setTimeout(() => request.cancel(), 0)
+  const request = alice.request('ping')
+  setTimeout(() => request.cancel(), 500)
   await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
-  await expect(onError).rejects.toThrow(/cancel/)
-  expect(_onCancel).toHaveBeenCalledTimes(1)
 })
 
-test('automatic cleanup requests', async (done) => {
-  expect.assertions(6)
+test('automatic cleanup requests', async () => {
+  expect.assertions(8)
 
-  const { alice, bob } = createConnection({
+  const [alice, bob] = create({
     onMessage () {}
   }, {
     onMessage () {}
@@ -105,26 +95,27 @@ test('automatic cleanup requests', async (done) => {
   expect(alice.requests.length).toBe(0)
   expect(bob.requests.length).toBe(0)
 
-  const aliceTen = Array.from(Array(10).keys()).map(() => bob.request('message'))
+  const aliceTen = Array.from(Array(10).keys()).map(() => alice.request('message'))
   const bobTen = Array.from(Array(10).keys()).map(() => bob.request('message'))
 
-  process.nextTick(async () => {
-    expect(bob.requests.length).toBe(20)
-    expect(alice.requests.length).toBe(20)
+  expect(bob.requests.length).toBe(10)
+  expect(alice.requests.length).toBe(10)
 
-    await Promise.all([...aliceTen, ...bobTen])
+  await new Promise(resolve => process.nextTick(resolve))
 
-    expect(alice.requests.length).toBe(0)
-    expect(bob.requests.length).toBe(0)
+  expect(bob.requests.length).toBe(20)
+  expect(alice.requests.length).toBe(20)
 
-    done()
-  })
+  await Promise.all([...aliceTen, ...bobTen])
+
+  expect(alice.requests.length).toBe(0)
+  expect(bob.requests.length).toBe(0)
 })
 
 test('close', async () => {
-  expect.assertions(6)
+  expect.assertions(5)
 
-  const { alice, bob } = createConnection()
+  const [alice, bob] = create()
 
   const waitForSubscribeError = new Promise(resolve => alice.once('subscribe-error', err => {
     expect(err.code).toBe('NMSG_ERR_RESPONSE')
@@ -134,10 +125,6 @@ test('close', async () => {
   const request = bob.request('message')
 
   const closing = expect(request).rejects.toThrow(NMSG_ERR_CLOSE)
-
-  alice.once('task-pending', req => {
-    expect(request.id).toBe(req.id)
-  })
 
   expect(bob.requests.length).toBe(1)
 
@@ -157,7 +144,7 @@ test('close', async () => {
 test('detect invalid request', (done) => {
   expect.assertions(2)
 
-  const { alice, bob } = createConnection()
+  const [alice, bob] = create()
 
   alice.once('subscribe-error', err => {
     expect(err.code).toBe('NMSG_ERR_INVALID_REQUEST')
@@ -176,7 +163,7 @@ test('send ephemeral message', async (done) => {
 
   let messages = 2
 
-  const { alice, bob } = createConnection(
+  const [alice, bob] = create(
     {
       onMessage: (data, { ephemeral }) => {
         expect(ephemeral).toBe(true)
@@ -205,7 +192,7 @@ test('send ephemeral message', async (done) => {
 test('concurrency', async () => {
   expect.assertions(1)
 
-  const { alice, bob } = createConnection(
+  const [alice, bob] = create(
     {
       concurrency: 2
     },

@@ -48,7 +48,6 @@
  */
 
 const assert = require('nanocustomassert')
-const eos = require('end-of-stream')
 const { NanoresourcePromise } = require('nanoresource-promise/emitter')
 const { default: PQueue } = require('p-queue')
 
@@ -60,7 +59,6 @@ const {
   NMSG_ERR_RESPONSE,
   NMSG_ERR_INVALID_REQUEST,
   NMSG_ERR_TIMEOUT,
-  NMSG_ERR_CANCEL,
   NMSG_ERR_CLOSE
 } = require('./lib/errors')
 
@@ -70,9 +68,7 @@ const kUnsubscribe = Symbol('nanomessage.unsubscribe')
 const kMessageHandler = Symbol('nanomessage.messagehandler')
 const kEncode = Symbol('nanomessage.encode')
 const kDecode = Symbol('nanomessage.decode')
-const kEndRequest = Symbol('nanomessage.endrequest')
 const kClose = Symbol('nanomessage.close')
-const kSendCancel = Symbol('nanomessage.sendcancel')
 
 class Nanomessage extends NanoresourcePromise {
   /**
@@ -120,31 +116,34 @@ class Nanomessage extends NanoresourcePromise {
    * @returns {CancelablePromise<*>} Returns the remote response.
    */
   request (data) {
-    const request = new Request({
-      task: async (id, onCancel) => {
-        await this.open()
-        await this._send(this[kEncode]({ id, data }), { onCancel })
-      },
-      onFinally: (req) => {
-        this[kEndRequest](req)
-      }
-    })
+    const request = new Request({ data })
 
     this[kRequests].set(request.id, request)
-    this[kQueue].add(() => {
-      request.start()
-      return request.promise
-    }).catch(err => {
-      if (err.name === 'TimeoutError') {
-        request.reject(new NMSG_ERR_TIMEOUT(request.id))
-      }
 
-      if (NMSG_ERR_CANCEL.equals(err)) {
-        this[kSendCancel](request.id)
-      }
+    request.onFinish(() => {
+      this[kRequests].delete(request.id)
+      this.emit('request-completed', request.info())
     })
 
-    this.emit('request-sended', request)
+    this[kQueue].add(async () => {
+      await this.open()
+
+      const info = request.info()
+
+      await this._send(this[kEncode](info), info)
+
+      return request.promise
+    }).catch(err => {
+      if (request.finished) return
+
+      if (err.name === 'TimeoutError') {
+        return request.reject(new NMSG_ERR_TIMEOUT(request.id))
+      }
+
+      request.reject(err)
+    })
+
+    this.emit('request-sended', request.info())
 
     return request.promise
   }
@@ -157,7 +156,8 @@ class Nanomessage extends NanoresourcePromise {
    */
   async send (data) {
     await this.open()
-    await this._send(this[kEncode]({ id: Request.uuid(), data, ephemeral: true }))
+    const info = { id: Request.uuid(), data, ephemeral: true }
+    return this._send(this[kEncode](info), info)
   }
 
   /**
@@ -197,15 +197,14 @@ class Nanomessage extends NanoresourcePromise {
     await Promise.all(requestsToClose)
   }
 
-  [kEncode] ({ id, data, response, ephemeral, cancel }) {
+  [kEncode] ({ id, data, response, ephemeral }) {
     try {
       if (!id) throw new Error('the nmId is required.')
       const chunk = this.codec.encode({
         nmId: id,
         nmData: data,
         nmResponse: response,
-        nmEphemeral: ephemeral,
-        nmCancel: cancel
+        nmEphemeral: ephemeral
       })
       return chunk
     } catch (err) {
@@ -230,68 +229,60 @@ class Nanomessage extends NanoresourcePromise {
     }
   }
 
-  [kEndRequest] (request) {
-    this[kRequests].delete(request.id)
-    if (!request.finished) this.emit('task-pending', request.id)
-    this.emit('request-ended', request.id)
-  }
-
   async [kMessageHandler] (message) {
-    const { nmId, nmData, nmResponse, nmEphemeral, nmCancel = false } = this[kDecode](message)
+    const { nmId, nmData, nmResponse, nmEphemeral } = this[kDecode](message)
+
+    let info = null
 
     if (nmEphemeral) {
       try {
-        await this._onMessage(nmData, { ephemeral: nmEphemeral })
+        info = { id: nmId, data: nmData, ephemeral: nmEphemeral }
+        this.emit('request-received', info)
+        await this._onMessage(nmData, info)
       } catch (err) {
         this.emit('ephemeral-error', err)
       }
       return
     }
 
+    let request = this[kRequests].get(nmId)
+
     // Answer
     if (nmResponse) {
-      const request = this[kRequests].get(nmId)
       if (request) request.resolve(nmData)
       return
     }
 
-    let request = this[kRequests].get(nmId)
-    if (!request) {
-      if (nmCancel) throw new NMSG_ERR_CANCEL(nmId)
-
-      request = this[kRequests].get(nmId) || new Request({
-        id: nmId,
-        task: async (id, onCancel) => {
-          if (request.finished) return
-          await this.open()
-          if (request.finished) return
-          this.emit('request-received', nmData)
-          const data = await this._onMessage(nmData, { onCancel })
-          if (request.finished) return
-          await this._send(this[kEncode]({ id, data, response: true }), { onCancel })
-          request.resolve()
-        },
-        onFinally: (req) => {
-          this[kEndRequest](req)
-        }
-      })
-
-      this[kRequests].set(request.id, request)
-
-      this[kQueue].add(() => {
-        request.start()
-        return request.promise
-      }).catch(err => {
-        if (err.name === 'TimeoutError') {
-          request.reject(new NMSG_ERR_TIMEOUT(request.id))
-        }
-      })
-    }
-
-    if (nmCancel) {
-      request.cancel()
+    if (request) {
+      // request already beeing process
       return
     }
+
+    request = new Request({ id: nmId, data: nmData, response: true })
+    info = request.info()
+
+    request.onFinish(() => {
+      this[kRequests].delete(request.id)
+    })
+
+    this[kRequests].set(request.id, request)
+
+    this.emit('request-received', info)
+
+    this[kQueue].add(async () => {
+      await this.open()
+      const data = await this._onMessage(nmData, info)
+      await this._send(this[kEncode]({ ...info, data }), { ...info, responseData: data })
+      return request.resolve()
+    }).catch(err => {
+      if (request.finished) return
+
+      if (err.name === 'TimeoutError') {
+        return request.reject(new NMSG_ERR_TIMEOUT(request.id))
+      }
+
+      request.reject(err)
+    })
 
     try {
       await request.promise
@@ -299,54 +290,6 @@ class Nanomessage extends NanoresourcePromise {
       throw new NMSG_ERR_RESPONSE(nmId, err.message)
     }
   }
-
-  async [kSendCancel] (id) {
-    try {
-      await this._send(this[kEncode]({ id, cancel: true }))
-    } catch (err) {}
-  }
-}
-
-/**
- * Create a nanomessage from a socket.
- *
- * @param {DuplexStream} stream
- * @param {NanomessageOptions} [opts]
- * @returns {Nanomessage}
- */
-function createFromStream (stream, options = {}) {
-  const nm = new Nanomessage(Object.assign({
-    subscribe (ondata) {
-      stream.on('data', async (data) => {
-        try {
-          await ondata(data)
-        } catch (err) {
-          nm.emit('subscribe-error', err)
-        }
-      })
-    },
-    send (chunk) {
-      if (stream.destroyed) return
-      stream.write(chunk)
-    },
-    close () {
-      if (stream.destroyed) return
-      return new Promise(resolve => {
-        eos(stream, () => resolve())
-        stream.destroy()
-      })
-    }
-  }, options))
-
-  nm.open().catch(() => {})
-
-  stream.on('close', () => {
-    nm.close()
-  })
-
-  nm.stream = stream
-
-  return nm
 }
 
 /**
@@ -358,7 +301,6 @@ function createFromStream (stream, options = {}) {
  */
 const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
-nanomessage.createFromStream = createFromStream
 nanomessage.symbols = { kRequests, kQueue, kUnsubscribe, kMessageHandler, kEncode, kDecode, kClose }
 nanomessage.errors = require('./lib/errors')
 module.exports = nanomessage

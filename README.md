@@ -92,16 +92,19 @@ Create a new nanomessage.
 
 Options include:
 
-- `send: (chunk: Buffer, opts: Object) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
-  - `opts.onCancel: (cb) => {}`: Subscribe to the cancel request if you want to cleanup the current operation.
+- `send: (chunk: Buffer, request: Object) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
-- `onMessage: (msg: *, opts: Object) -> Promise<Response>`: Async handler to process the incoming requests.
-  - `opts.ephemeral: boolean`: It's true if the message is an ephemeral.
-  - `opts.onCancel: (cb) => {}`: Subscribe to the cancel request if you want to cleanup the current operation.
+- `onMessage: (msg: *, request: Object) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise<*>`: Defines a function to run after the nanomessage instance was close.
 - `timeout: 10 * 1000`: Time to wait for the response of a request.
 - `concurrency: Infinity`: Defines how many requests do you want to run in concurrent.
 - `codec: JSON`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
+
+`request` is an object with:
+
+- `request.id: hyperid()`: ID of the request.
+- `request.data: hyperid()`: Plain data to send.
+- `request.ephemeral: boolean`: It's true if the message is ephemeral.
 
 You can also extend from this prototype if you prefer:
 
