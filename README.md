@@ -14,13 +14,12 @@ $ npm install nanomessage
 
 ## <a name="usage"></a> Usage
 
-### WebSocket
 ```javascript
 const WebSocket = require('ws')
 
 const nanomessage = require('..')
 
-// Server
+// server.js
 const server = new WebSocket.Server({ port: 3000 })
 server.on('connection', function connection (ws) {
   nanomessage({
@@ -40,7 +39,7 @@ server.on('connection', function connection (ws) {
   }).open().catch(err => console.error(err))
 })
 
-// Client
+// client.js
 const ws = new WebSocket('ws://127.0.0.1:3000')
 const Bob = nanomessage({
   subscribe (ondata) {
@@ -60,30 +59,6 @@ const Bob = nanomessage({
 })()
 ```
 
-### net + createFromStream helper
-```javascript
-const net = require('net')
-
-const { createFromStream } = require('..')
-
-const Alice = net.createServer(socket => {
-  createFromStream(socket, {
-    onMessage (msg, opts) {
-      console.log(msg)
-      return 'pong from Alice'
-    }
-  })
-})
-
-Alice.listen(3000)
-
-const Bob = createFromStream(net.createConnection(3000))
-
-;(async () => {
-  console.log(await Bob.request('ping from Bob'))
-})()
-```
-
 ## <a name="api"></a> API
 
 #### `const nm = nanomessage(options)`
@@ -92,19 +67,21 @@ Create a new nanomessage.
 
 Options include:
 
-- `send: (chunk: Buffer, request: Object) -> Promise<*>`: Defines how to send the messages provide it by nanomessage to the low level solution.
+- `send: (chunk: Buffer, info: Object) -> Promise`: Defines how to send the messages provide it by nanomessage to the low level solution.
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
-- `onMessage: (msg: *, request: Object) -> Promise<Response>`: Async handler to process the incoming requests.
-- `close: () -> Promise<*>`: Defines a function to run after the nanomessage instance was close.
+- `onMessage: (msg: *, info: Object) -> Promise<Response>`: Async handler to process the incoming requests.
+- `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
 - `timeout: 10 * 1000`: Time to wait for the response of a request.
 - `concurrency: Infinity`: Defines how many requests do you want to run in concurrent.
 - `codec: JSON`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
 
-`request` is an object with:
+`info` is an object with:
 
-- `request.id: hyperid()`: ID of the request.
-- `request.data: hyperid()`: Plain data to send.
-- `request.ephemeral: boolean`: It's true if the message is ephemeral.
+- `info.id: hyperid()`: ID of the request.
+- `info.data: *`: Plain data to send.
+- `info.ephemeral: boolean`: It's true if the message is ephemeral.
+- `info.response: boolean`: It's true if the message is a response.
+- `info.responseData: *`: Plain data to response.
 
 You can also extend from this prototype if you prefer:
 

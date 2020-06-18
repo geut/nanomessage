@@ -11,33 +11,30 @@
 /**
  * Compatible codec: https://github.com/mafintosh/codecs
  * @typedef {object} Codec
- * @property {!function} encode
- * @property {!function} decode
+ * @property {function} encode
+ * @property {function} decode
  */
 
 /**
  * Subscribe for the incoming data.
  * @callback subscribe
- * @param {!function} onData
- * @returns {?function} - Unsubscribe function.
+ * @param {function} onData
+ * @returns {function} - Unsubscribe function.
  */
 
 /**
  * How to send the data.
  * @callback send
  * @param {Buffer}
- * @param {Object} opts
- * @param {Function} opts.onCancel
+ * @param {Info} info
  * @returns {Promise}
  */
 
 /**
  * Request handler.
  * @callback onMessage
- * @param {!Buffer} data
- * @param {Object} opts
- * @param {boolean} opts.ephemeral
- * @param {Function} opts.onCancel
+ * @param {Buffer} data
+ * @param {Info} info
  * @returns {Promise<*>} - Response with any data.
  */
 
@@ -45,6 +42,15 @@
  * Runs and wait for a close operation.
  * @callback close
  * @returns {Promise<*>} - Response with any data.
+ */
+
+/**
+ * @typedef {object} info
+ * @property {string} info.id
+ * @property {any} info.data
+ * @property {boolean} info.ephemeral
+ * @property {response} info.response
+ * @property {responseData} [info.responseData]
  */
 
 const assert = require('nanocustomassert')
@@ -156,7 +162,7 @@ class Nanomessage extends NanoresourcePromise {
    */
   async send (data) {
     await this.open()
-    const info = { id: Request.uuid(), data, ephemeral: true }
+    const info = Request.info({ id: Request.uuid(), data, ephemeral: true })
     return this._send(this[kEncode](info), info)
   }
 
@@ -236,7 +242,7 @@ class Nanomessage extends NanoresourcePromise {
 
     if (nmEphemeral) {
       try {
-        info = { id: nmId, data: nmData, ephemeral: nmEphemeral }
+        info = Request.info({ id: nmId, data: nmData, ephemeral: nmEphemeral })
         this.emit('request-received', info)
         await this._onMessage(nmData, info)
       } catch (err) {
@@ -247,7 +253,7 @@ class Nanomessage extends NanoresourcePromise {
 
     let request = this[kRequests].get(nmId)
 
-    // Answer
+    // resolve response
     if (nmResponse) {
       if (request) request.resolve(nmData)
       return
@@ -257,6 +263,8 @@ class Nanomessage extends NanoresourcePromise {
       // request already beeing process
       return
     }
+
+    // create a request response
 
     request = new Request({ id: nmId, data: nmData, response: true })
     info = request.info()
