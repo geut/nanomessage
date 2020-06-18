@@ -19,7 +19,7 @@
     "hyperid": "^2.0.2",
     "nanocustomassert": "^1.0.0",
     "nanoerror": "^1.1.0",
-    "nanoresource-promise": "^1.2.2",
+    "nanoresource-promise": "^2.0.0-beta.2",
     "p-queue": "^6.3.0"
   },
   "devDependencies": {
