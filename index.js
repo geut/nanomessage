@@ -100,7 +100,7 @@ class Nanomessage extends NanoresourcePromise {
 
     this[kQueue] = new PQueue({
       concurrency,
-      timeout,
+      timeout: timeout === Infinity ? undefined : timeout,
       throwOnTimeout: true
     })
     this[kRequests] = new Map()
