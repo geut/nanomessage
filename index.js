@@ -5,7 +5,7 @@
  * @property {onMessage} [opts.onMessage]
  * @property {close} [opts.close]
  * @property {number} [opts.timeout=10000]
- * @property {Codec} [opts.codec=json]
+ * @property {Codec} [opts.valueEncoding=json]
 */
 
 /**
@@ -84,7 +84,7 @@ class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { subscribe, send, onMessage, close, timeout = 10 * 1000, concurrency = Infinity, codec = defaultCodec } = opts
+    const { subscribe, send, onMessage, close, timeout = 10 * 1000, concurrency = Infinity, valueEncoding = defaultCodec } = opts
 
     assert(this._send || send, 'send is required')
 
@@ -94,8 +94,8 @@ class Nanomessage extends NanoresourcePromise {
     if (close) this[kClose] = close
 
     this.codec = {
-      encode: val => codec.encode(val),
-      decode: buf => codec.decode(buf)
+      encode: val => valueEncoding.encode(val),
+      decode: buf => valueEncoding.decode(buf)
     }
 
     this[kQueue] = new PQueue({
