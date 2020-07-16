@@ -84,7 +84,7 @@ test('cancel', async () => {
 })
 
 test('automatic cleanup requests', async () => {
-  expect.assertions(8)
+  expect.assertions(6)
 
   const [alice, bob] = create({
     onMessage () {}
@@ -100,11 +100,6 @@ test('automatic cleanup requests', async () => {
 
   expect(bob.requests.length).toBe(10)
   expect(alice.requests.length).toBe(10)
-
-  await new Promise(resolve => process.nextTick(resolve))
-
-  expect(bob.requests.length).toBe(20)
-  expect(alice.requests.length).toBe(20)
 
   await Promise.all([...aliceTen, ...bobTen])
 
@@ -147,7 +142,7 @@ test('detect invalid request', (done) => {
   const [alice, bob] = create()
 
   alice.once('subscribe-error', err => {
-    expect(err.code).toBe('NMSG_ERR_INVALID_REQUEST')
+    expect(err.code).toBe('NMSG_ERR_DECODE')
     alice.once('subscribe-error', err => {
       expect(err.code).toBe('NMSG_ERR_DECODE')
       done()
@@ -204,7 +199,7 @@ test('concurrency', async () => {
   alice.request('ping from alice').catch(() => {})
   alice.request('ping from alice').catch(() => {})
 
-  expect(alice.isFull).toBe(true)
+  expect(alice.inflightRequests).toBe(2)
 
   await Promise.all([alice.close(), bob.close()])
 })
