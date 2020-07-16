@@ -179,6 +179,6 @@ async function test2 () {
 }
 
 ;(async () => {
-  await test2()
-  // await test()
+  // await test2()
+  await test()
 })()

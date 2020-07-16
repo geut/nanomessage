@@ -73,35 +73,36 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   request (data) {
-    const request = new Request({ data })
-    const info = request.info()
+    // const request = new Request({ data })
+    // const info = request.info()
 
-    this[kRequests].set(request.id, request)
+    // this[kRequests].set(request.id, request)
 
-    request.onFinish(() => {
-      this[kRequests].delete(request.id)
-      this.emit('request-ended', info)
-    })
+    // request.onFinish(() => {
+    //   this[kRequests].delete(request.id)
+    //   this.emit('request-ended', info)
+    // })
 
-    this[kOutQueue]
-      .add(() => {
-        return this[kFastCheckOpen]()
-          .then(() => {
-            this._send(this.encode(info), info)
-            return request.promise
-          })
-      })
-      .catch(err => {
-        if (request.finished) return
+    // this[kOutQueue]
+    //   .add(() => {
+    //     return this[kFastCheckOpen]()
+    //       .then(() => {
+    //         this._send(this.encode(info), info)
+    //         return request.promise
+    //       })
+    //   })
+    //   .catch(err => {
+    //     if (request.finished) return
 
-        if (err.name === 'TimeoutError') {
-          return request.reject(new NMSG_ERR_TIMEOUT(request.id))
-        }
+    //     if (err.name === 'TimeoutError') {
+    //       return request.reject(new NMSG_ERR_TIMEOUT(request.id))
+    //     }
 
-        request.reject(err)
-      })
+    //     request.reject(err)
+    //   })
 
-    this.emit('request-sended', info)
+    // this.emit('request-sended', info)
+    request.resolve()
 
     return request.promise
   }
