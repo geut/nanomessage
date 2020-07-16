@@ -240,7 +240,7 @@ class Nanomessage extends NanoresourcePromise {
     this[kFastCheckOpen]()
       .then(() => {
         if (request.finished) return
-        this._onMessage(info.data, info)
+        return this._onMessage(info.data, info)
       })
       .then(data => {
         if (request.finished || this.closed || this.closing) return
