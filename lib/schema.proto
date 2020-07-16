@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+message Request {
+  string id = 1;
+  bool response = 2;
+  bool ephemeral = 3;
+  bytes data = 4;
+}

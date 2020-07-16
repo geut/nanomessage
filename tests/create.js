@@ -32,7 +32,9 @@ function createFromStream (stream, options = {}) {
     }
   }, nmOptions))
 
-  nm.open().catch(() => {})
+  nm.open().catch((err) => {
+    console.log(err)
+  })
 
   stream.on('close', () => {
     nm.close()
