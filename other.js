@@ -41,9 +41,10 @@ const stream1 = new RPC({
 const aMethod1 = stream1.defineService({ id: 1 })
   .defineMethod({
     id: 1,
+    requestEncoding: bufferJson,
+    responseEncoding: bufferJson,
     async onrequest (value) {
-      const data = decode(value)
-      return encode({ id: data.id, data: 'holaaa', response: true })
+      return { value: 'test' }
     }
   })
 
@@ -56,9 +57,10 @@ const stream2 = new RPC({
 const aMethod2 = stream2.defineService({ id: 1 })
   .defineMethod({
     id: 1,
+    requestEncoding: bufferJson,
+    responseEncoding: bufferJson,
     async onrequest (value) {
-      const data = decode(value)
-      return encode({ id: data.id, data: 'holaaa', response: true })
+      return { value: 'test' }
     }
   })
 
@@ -68,12 +70,10 @@ stream1.pipe(stream2).pipe(stream1)
   console.time('test')
   await Promise.all([
     Promise.all([...Array(10000).keys()].map(i => {
-      const info = Request.info({ id: Request.uuid(), data: 'test', ephemeral: true })
-      aMethod1.request(encode(info))
+      return aMethod1.request({ value: 'test' })
     })),
     Promise.all([...Array(10000).keys()].map(i => {
-      const info = Request.info({ id: Request.uuid(), data: 'test', ephemeral: true })
-      aMethod2.request(encode(info))
+      return aMethod2.request({ value: 'test' })
     }))
   ])
   // await wait

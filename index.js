@@ -1,6 +1,7 @@
 const assert = require('nanocustomassert')
 const { NanoresourcePromise } = require('nanoresource-promise/emitter')
 const { default: PQueue } = require('p-queue')
+const fastq = require('fastq')
 
 const Request = require('./lib/request')
 const defaultCodec = require('./lib/codec')
@@ -18,6 +19,8 @@ const {
 const kRequests = Symbol('nanomessage.requests')
 const kInQueue = Symbol('nanomessage.inqueue')
 const kOutQueue = Symbol('nanomessage.outqueue')
+const kInWorker = Symbol('nanomessage.inworker')
+const kOutWorker = Symbol('nanomessage.outworker')
 const kUnsubscribe = Symbol('nanomessage.unsubscribe')
 const kMessageHandler = Symbol('nanomessage.messagehandler')
 const kClose = Symbol('nanomessage.close')
@@ -49,17 +52,32 @@ class Nanomessage extends NanoresourcePromise {
       }
     }
 
-    this[kInQueue] = new PQueue({
-      concurrency: concurrency.incoming || Infinity,
-      timeout: timeout === Infinity ? undefined : timeout,
-      throwOnTimeout: true
-    })
+    this[kInQueue] = fastq(this, this[kInWorker], concurrency.incoming || Infinity)
+    this[kOutQueue] = fastq(this, this[kOutWorker], concurrency.outgoing || Infinity)
 
-    this[kOutQueue] = new PQueue({
-      concurrency: concurrency.outgoing || Infinity,
-      timeout: timeout === Infinity ? undefined : timeout,
-      throwOnTimeout: true
-    })
+    this.test = fastq(this, (request, cb) => {
+      const info = request.info()
+      this[kFastCheckOpen]().then(() => {
+        this._send(this.encode(info), info)
+        cb()
+      })
+    }, Infinity)
+
+    this.test2 = fastq(this, (request, cb) => {
+      const info = request.info()
+      this[kFastCheckOpen]()
+        .then(() => this._onMessage(info.data, info))
+        .then(data => {
+          info.responseData = data
+          this._send(this.encode({
+            id: info.id,
+            response: info.response,
+            data
+          }), info)
+          request.resolve()
+          cb()
+        })
+    }, Infinity)
 
     this[kRequests] = new Map()
   }
@@ -69,49 +87,31 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   get inflightRequests () {
-    return this[kOutQueue].pending
+    return this[kOutQueue].running()
   }
 
   request (data) {
-    // const request = new Request({ data })
-    // const info = request.info()
+    const request = new Request({ data })
+    const info = request.info()
 
-    // this[kRequests].set(request.id, request)
+    this[kRequests].set(request.id, request)
 
-    // request.onFinish(() => {
-    //   this[kRequests].delete(request.id)
-    //   this.emit('request-ended', info)
-    // })
+    this[kOutQueue].push(request, err => {
+      this[kRequests].delete(request.id)
+      this.emit('request-ended', err, info)
+    })
 
-    // this[kOutQueue]
-    //   .add(() => {
-    //     return this[kFastCheckOpen]()
-    //       .then(() => {
-    //         this._send(this.encode(info), info)
-    //         return request.promise
-    //       })
-    //   })
-    //   .catch(err => {
-    //     if (request.finished) return
-
-    //     if (err.name === 'TimeoutError') {
-    //       return request.reject(new NMSG_ERR_TIMEOUT(request.id))
-    //     }
-
-    //     request.reject(err)
-    //   })
-
-    // this.emit('request-sended', info)
-    request.resolve()
+    this.emit('request-created', info)
 
     return request.promise
   }
 
   send (data) {
-    return Promise.resolve().then(() => {
-      const info = Request.info({ id: Request.uuid(), data, ephemeral: true })
-      this._send(this.encode(info), info)
-    })
+    return this[kFastCheckOpen]()
+      .then(() => {
+        const info = Request.info({ id: Request.uuid(), data, ephemeral: true })
+        this._send(this.encode(info), info)
+      })
   }
 
   setMessageHandler (onMessage) {
@@ -121,7 +121,12 @@ class Nanomessage extends NanoresourcePromise {
 
   encode (info) {
     try {
-      return schema.Request.encode({ ...info, data: this.codec.encode(info.data) })
+      return schema.Request.encode({
+        id: info.id,
+        response: info.response,
+        ephemeral: info.ephemeral,
+        data: this.codec.encode(info.data)
+      })
     } catch (err) {
       throw new NMSG_ERR_ENCODE(err.message)
     }
@@ -165,10 +170,8 @@ class Nanomessage extends NanoresourcePromise {
     })
     this[kRequests].clear()
 
-    this[kInQueue].clear()
-    this[kInQueue].pause()
-    this[kOutQueue].clear()
-    this[kOutQueue].pause()
+    this[kInQueue].kill()
+    this[kOutQueue].kill()
 
     await (this[kClose] && this[kClose]())
     await Promise.all(requestsToClose)
@@ -212,42 +215,56 @@ class Nanomessage extends NanoresourcePromise {
     }
 
     // create a request response
-
     request = new Request({ id, data, response: true })
     info = request.info()
-
-    request.onFinish(() => {
-      this[kRequests].delete(request.id)
-    })
 
     this[kRequests].set(request.id, request)
 
     this.emit('request-received', info)
 
-    this[kInQueue]
-      .add(() => {
-        return this[kFastCheckOpen]()
-          .then(() => this._onMessage(info.data, info))
-          .then(data => {
-            this._send(this.encode({ ...info, data }), { ...info, responseData: data })
-            request.resolve()
-          })
-      })
-      .catch(err => {
-        if (request.finished) return
-
-        if (err.name === 'TimeoutError') {
-          return request.reject(new NMSG_ERR_TIMEOUT(request.id))
-        }
-
-        request.reject(err)
-      })
+    this[kInQueue].push(request, (err) => {
+      this[kRequests].delete(request.id)
+      if (err) return request.reject(err)
+      request.resolve()
+    })
 
     request.promise.catch(err => {
       const rErr = new NMSG_ERR_RESPONSE(err.message)
       rErr.stack = err.stack
       this.emit('response-error', rErr, info)
     })
+  }
+
+  [kInWorker] (request, done) {
+    const info = request.info()
+    this[kFastCheckOpen]()
+      .then(() => {
+        if (request.finished) return
+        this._onMessage(info.data, info)
+      })
+      .then(data => {
+        if (request.finished || this.closed || this.closing) return
+        info.responseData = data
+        this._send(this.encode({
+          id: info.id,
+          response: info.response,
+          data
+        }), info)
+        done()
+      })
+      .catch((err) => done(err))
+  }
+
+  [kOutWorker] (request, done) {
+    const info = request.info()
+    this[kFastCheckOpen]()
+      .then(() => {
+        if (request.finished) return
+        this._send(this.encode(info), info)
+        return request.promise
+      })
+      .then(() => done())
+      .catch((err) => done(err))
   }
 }
 
