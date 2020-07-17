@@ -48,7 +48,7 @@ test('basic', async () => {
   expect(onSend).toHaveBeenNthCalledWith(2, { data: Buffer.from('ping from bob'), responseData: Buffer.from('pong from alice'), ephemeral: false, response: true })
 })
 
-test('timeout', async () => {
+test.skip('timeout', async () => {
   expect.assertions(1)
 
   const [alice] = create(
@@ -107,7 +107,7 @@ test('automatic cleanup requests', async () => {
   expect(bob.requests.length).toBe(0)
 })
 
-test('close', async () => {
+test.skip('close', async () => {
   expect.assertions(5)
 
   const [alice, bob] = create()

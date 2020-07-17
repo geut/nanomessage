@@ -5,7 +5,6 @@ const varint = require('varint')
 const bufferJson = require('buffer-json-encoding')
 
 const Request = require('./lib/request')
-const schema = require('./lib/schema')
 const {
   NMSG_ERR_ENCODE,
   NMSG_ERR_DECODE,
@@ -102,19 +101,17 @@ class Nanomessage extends NanoresourcePromise {
     const info = request.info()
 
     this[kRequests].set(request.id, request)
-
-    this.emit('request-created', info)
-
-    const p = new Promise((resolve, reject) => this[kOutQueue].push(request, (err, result) => {
+    request.onFinish(err => {
       this[kRequests].delete(request.id)
       this[kIdGenerator].release(request.id)
       this.emit('request-ended', err, info)
-      if (err) return reject(err)
-      resolve(result)
-    }))
+    })
 
-    p.cancel = (err) => request.cancel(err)
-    return p
+    this.emit('request-created', info)
+
+    this[kOutQueue].push(request)
+
+    return request.promise
   }
 
   send (data) {
@@ -132,12 +129,22 @@ class Nanomessage extends NanoresourcePromise {
 
   encode (info) {
     try {
-      return schema.Request.encode({
-        id: info.id,
-        response: info.response,
-        ephemeral: info.ephemeral,
-        data: this.codec.encode(info.data)
-      })
+      const data = this.codec.encode(info.data)
+      const buf = Buffer.allocUnsafe(
+        varint.encodingLength(data.length) +
+        data.length +
+        varint.encodingLength(info.id) +
+        varint.encodingLength(1)
+      )
+      let offset = 0
+      varint.encode(data.length, buf, offset)
+      offset += varint.encode.bytes
+      data.copy(buf, offset)
+      offset += data.length
+      varint.encode(info.id, buf, offset)
+      offset += varint.encode.bytes
+      varint.encode(info.response ? 1 : 0, buf, offset)
+      return buf
     } catch (err) {
       throw new NMSG_ERR_ENCODE(err.message)
     }
@@ -145,13 +152,15 @@ class Nanomessage extends NanoresourcePromise {
 
   decode (buf) {
     try {
-      const request = schema.Request.decode(buf)
-      if (!request.id) {
-        const err = new NMSG_ERR_INVALID_REQUEST()
-        err.request = request
-        throw err
-      }
-      request.data = this.codec.decode(request.data)
+      const request = {}
+      let offset = 0
+      const dataLength = varint.decode(buf, 0)
+      offset += varint.decode.bytes
+      request.data = this.codec.decode(buf.slice(offset, offset + dataLength))
+      offset += dataLength
+      request.id = varint.decode(buf, offset)
+      offset += varint.decode.bytes
+      request.response = !!varint.decode(buf, offset)
       return request
     } catch (err) {
       if (err instanceof NMSG_ERR_INVALID_REQUEST) {
@@ -192,6 +201,8 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   [kMessageHandler] (message) {
+    if (this.closed || this.closing) return
+
     const info = Request.info(this.decode(message))
 
     // resolve response
@@ -241,7 +252,7 @@ class Nanomessage extends NanoresourcePromise {
 
         done()
       })
-      .catch((err) => done(err))
+      .catch(err => done(err))
   }
 
   [kOutWorker] (request, done) {
@@ -252,8 +263,8 @@ class Nanomessage extends NanoresourcePromise {
         this._send(this.encode(info), info)
         return request.promise
       })
-      .then((result) => done(null, result))
-      .catch((err) => done(err))
+      .then(() => done())
+      .catch(err => done(err))
   }
 }
 

@@ -1,96 +1,56 @@
-const eos = require('end-of-stream')
-const { Duplex } = require('streamx')
-const { Nanomessage } = require('.')
+const bench = require('nanobench')
+const create = require('./tests/create')
 
-function createFromStream (stream, options = {}) {
-  const { onSend = () => {}, onClose = () => {}, ...nmOptions } = options
-
-  const nm = new Nanomessage(Object.assign({
-    subscribe (ondata) {
-      stream.on('data', (data) => {
-        ondata(data)
-      })
-    },
-    send (chunk, info) {
-      // onSend(chunk, info)
-      // if (stream.destroyed) return
-      stream.write(chunk)
-    },
-    close () {
-      onClose()
-      if (stream.destroyed) return
-      return new Promise(resolve => {
-        eos(stream, () => resolve())
-        stream.destroy()
-      })
-    }
-  }, nmOptions))
-
-  nm.open().catch((err) => {
-    console.log(err)
-  })
-
-  stream.on('close', () => {
-    nm.close()
-  })
-
-  nm.stream = stream
-
-  return nm
-}
-
-function create (aliceOpts = { onMessage () {} }, bobOpts = { onMessage () {} }) {
-  const stream1 = new Duplex({
-    write (data, cb) {
-      stream2.push(data)
-      cb()
-    }
-  })
-  const stream2 = new Duplex({
-    write (data, cb) {
-      stream1.push(data)
-      cb()
-    }
-  })
-
-  const alice = createFromStream(stream1, aliceOpts)
-  const bob = createFromStream(stream2, bobOpts)
-
-  return [alice, bob]
-}
-
-async function test () {
+bench('execute 10000 requests x 2 peers', async function (b) {
   const [alice, bob] = create()
   await alice.open()
   await bob.open()
 
-  const aliceTotal = 0
-  const bobTotal = 0
+  b.start()
 
-  const max = 10000
-  // const wait = new Promise(resolve => {
-  //   alice.setMessageHandler(data => {
-  //     aliceTotal++
-  //     if (aliceTotal === max && bobTotal === max) resolve()
-  //   })
-  //   bob.setMessageHandler(data => {
-  //     bobTotal++
-  //     if (aliceTotal === max && bobTotal === max) resolve()
-  //   })
-  // })
-  console.time('test')
   await Promise.all([
-    Promise.all([...Array(max).keys()].map(i => {
+    Promise.all([...Array(10000).keys()].map(i => {
       return alice.request('test')
     })),
-    Promise.all([...Array(max).keys()].map(i => {
+    Promise.all([...Array(10000).keys()].map(i => {
       return bob.request('test')
     }))
   ])
-  // await wait
-  console.timeEnd('test')
-}
 
-;(async () => {
-  await test()
-})()
+  b.end()
+})
+
+bench('execute 10000 ephemeral messages x 2 peers', async function (b) {
+  let aliceTotal = 0
+  let bobTotal = 0
+  let done = null
+  const waitFor = new Promise(resolve => {
+    done = resolve
+  })
+  const [alice, bob] = create({
+    onMessage () {
+      aliceTotal++
+      if (aliceTotal === 10000 && bobTotal === 10000) done()
+    }
+  }, {
+    onMessage () {
+      bobTotal++
+      if (aliceTotal === 10000 && bobTotal === 10000) done()
+    }
+  })
+  await alice.open()
+  await bob.open()
+
+  b.start()
+
+  await Promise.all([
+    Promise.all([...Array(10000).keys()].map(i => {
+      return alice.send('test')
+    })),
+    Promise.all([...Array(10000).keys()].map(i => {
+      return bob.send('test')
+    }))
+  ])
+  await waitFor
+  b.end()
+})
