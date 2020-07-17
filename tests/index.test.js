@@ -12,7 +12,7 @@ test('configuration', () => {
   expect(() => nanomessage()).toThrow(/send is required/)
 })
 
-test('simple', async () => {
+test('basic', async () => {
   expect.assertions(14)
 
   const onSend = jest.fn()

@@ -1,9 +1,10 @@
 const assert = require('nanocustomassert')
 const { NanoresourcePromise } = require('nanoresource-promise/emitter')
 const fastq = require('fastq')
+const varint = require('varint')
+const bufferJson = require('buffer-json-encoding')
 
 const Request = require('./lib/request')
-const defaultCodec = require('./lib/codec')
 const schema = require('./lib/schema')
 const {
   NMSG_ERR_ENCODE,
@@ -25,12 +26,41 @@ const kMessageHandler = Symbol('nanomessage.messagehandler')
 const kClose = Symbol('nanomessage.close')
 const kFastCheckOpen = Symbol('nanomessage.fastcheckopen')
 const kTimeout = Symbol('nanomessage.timeout')
+const kIdGenerator = Symbol('nanomessage.idgenerator')
+
+const DEFAULT_CODEC = {
+  encode (data) {
+    return bufferJson.encode({ data })
+  },
+  decode (buf) {
+    return bufferJson.decode(buf).data
+  }
+}
+
+class IdGenerator {
+  constructor (generate) {
+    this._generate = generate
+    this._free = []
+  }
+
+  get () {
+    if (!this._free.length) {
+      return this._generate()
+    }
+
+    return this._free.pop()
+  }
+
+  release (id) {
+    this._free.push(id)
+  }
+}
 
 class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { subscribe, send, onMessage, close, timeout = Infinity, valueEncoding = defaultCodec } = opts
+    const { subscribe, send, onMessage, close, timeout = Infinity, valueEncoding = DEFAULT_CODEC } = opts
     let { concurrency = {} } = opts
 
     assert(this._send || send, 'send is required')
@@ -56,6 +86,7 @@ class Nanomessage extends NanoresourcePromise {
     this[kInQueue] = fastq(this, this[kInWorker], concurrency.incoming || Infinity)
     this[kOutQueue] = fastq(this, this[kOutWorker], concurrency.outgoing || Infinity)
     this[kRequests] = new Map()
+    this[kIdGenerator] = new IdGenerator(() => this[kRequests].size + 1)
   }
 
   get requests () {
@@ -67,7 +98,7 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   request (data) {
-    const request = new Request({ data })
+    const request = new Request({ id: this[kIdGenerator].get(), data })
     const info = request.info()
 
     this[kRequests].set(request.id, request)
@@ -76,6 +107,7 @@ class Nanomessage extends NanoresourcePromise {
 
     const p = new Promise((resolve, reject) => this[kOutQueue].push(request, (err, result) => {
       this[kRequests].delete(request.id)
+      this[kIdGenerator].release(request.id)
       this.emit('request-ended', err, info)
       if (err) return reject(err)
       resolve(result)
@@ -88,7 +120,7 @@ class Nanomessage extends NanoresourcePromise {
   send (data) {
     return this[kFastCheckOpen]()
       .then(() => {
-        const info = Request.info({ id: Request.uuid(), data, ephemeral: true })
+        const info = Request.info({ id: 0, data })
         this._send(this.encode(info), info)
       })
   }
