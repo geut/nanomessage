@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## 7.0.0 - 2020-07-17 [YANKED]
+
 ## 6.0.0 - 2020-07-15 [YANKED]
 
 ## 5.4.0 - 2020-07-03 [YANKED]
@@ -49,4 +51,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 1.1.0 - 2020-02-19 [YANKED]
 
 ## 1.0.1 - 2020-02-17 [YANKED]
-[Unreleased]: https://github.com/geut/nanomessage/compare/v6.0.0...HEAD
+[Unreleased]: https://github.com/geut/nanomessage/compare/v7.0.0...HEAD
