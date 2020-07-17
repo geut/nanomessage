@@ -67,17 +67,17 @@ Create a new nanomessage.
 
 Options include:
 
-- `send: (chunk: Buffer, info: Object) -> Promise`: Defines how to send the messages provide it by nanomessage to the low level solution.
+- `send: (chunk: Buffer, info: Object) -> void`: Defines how to send the messages provide it by nanomessage to the low level solution.
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
 - `onMessage: (msg: *, info: Object) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
-- `timeout: 10 * 1000`: Time to wait for the response of a request. Set to `Infinity` to disable timeout.
+- `timeout: Infinity`: Time to wait for the response of a request.
 - `concurrency: Infinity`: Defines how many requests do you want to run in concurrent.
-- `valueEncoding: JSON`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
+- `valueEncoding: buffer-json-encoding`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
 
 `info` is an object with:
 
-- `info.id: hyperid()`: ID of the request.
+- `info.id: Number`: Incremental ID request.
 - `info.data: *`: Plain data to send.
 - `info.ephemeral: boolean`: It's true if the message is ephemeral.
 - `info.response: boolean`: It's true if the message is a response.

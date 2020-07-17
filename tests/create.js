@@ -1,6 +1,4 @@
-const eos = require('end-of-stream')
-const through = require('through2')
-const duplexify = require('duplexify')
+const { Duplex } = require('streamx')
 
 const { Nanomessage } = require('..')
 
@@ -9,9 +7,9 @@ function createFromStream (stream, options = {}) {
 
   const nm = new Nanomessage(Object.assign({
     subscribe (ondata) {
-      stream.on('data', async (data) => {
+      stream.on('data', (data) => {
         try {
-          await ondata(data)
+          ondata(data)
         } catch (err) {
           nm.emit('subscribe-error', err)
         }
@@ -26,13 +24,15 @@ function createFromStream (stream, options = {}) {
       onClose()
       if (stream.destroyed) return
       return new Promise(resolve => {
-        eos(stream, () => resolve())
+        stream.once('close', () => resolve())
         stream.destroy()
       })
     }
   }, nmOptions))
 
-  nm.open().catch(() => {})
+  nm.open().catch((err) => {
+    console.log(err)
+  })
 
   stream.on('close', () => {
     nm.close()
@@ -44,13 +44,20 @@ function createFromStream (stream, options = {}) {
 }
 
 module.exports = function create (aliceOpts = { onMessage () {} }, bobOpts = { onMessage () {} }) {
-  const t1 = through()
-  const t2 = through()
+  const stream1 = new Duplex({
+    write (data, cb) {
+      stream2.push(data)
+      cb()
+    }
+  })
+  const stream2 = new Duplex({
+    write (data, cb) {
+      stream1.push(data)
+      cb()
+    }
+  })
 
-  const stream1 = duplexify(t1, t2)
   const alice = createFromStream(stream1, aliceOpts)
-
-  const stream2 = duplexify(t2, t1)
   const bob = createFromStream(stream2, bobOpts)
 
   return [alice, bob]

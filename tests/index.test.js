@@ -12,7 +12,7 @@ test('configuration', () => {
   expect(() => nanomessage()).toThrow(/send is required/)
 })
 
-test('simple', async () => {
+test('basic', async () => {
   expect.assertions(14)
 
   const onSend = jest.fn()
@@ -84,7 +84,7 @@ test('cancel', async () => {
 })
 
 test('automatic cleanup requests', async () => {
-  expect.assertions(8)
+  expect.assertions(6)
 
   const [alice, bob] = create({
     onMessage () {}
@@ -101,11 +101,6 @@ test('automatic cleanup requests', async () => {
   expect(bob.requests.length).toBe(10)
   expect(alice.requests.length).toBe(10)
 
-  await new Promise(resolve => process.nextTick(resolve))
-
-  expect(bob.requests.length).toBe(20)
-  expect(alice.requests.length).toBe(20)
-
   await Promise.all([...aliceTen, ...bobTen])
 
   expect(alice.requests.length).toBe(0)
@@ -117,26 +112,15 @@ test('close', async () => {
 
   const [alice, bob] = create()
 
-  const waitForSubscribeError = new Promise(resolve => alice.once('subscribe-error', err => {
-    expect(err.code).toBe('NMSG_ERR_RESPONSE')
-    resolve()
-  }))
-
   const request = bob.request('message')
 
   const closing = expect(request).rejects.toThrow(NMSG_ERR_CLOSE)
 
   expect(bob.requests.length).toBe(1)
 
-  await Promise.all([
-    closing,
-    waitForSubscribeError,
-    new Promise((resolve, reject) => {
-      process.nextTick(() => {
-        expect(bob.close()).resolves.toBeUndefined().then(resolve).catch(reject)
-      })
-    })
-  ])
+  await expect(alice.close()).resolves.toBeUndefined()
+  await expect(bob.close()).resolves.toBeUndefined()
+  await closing
 
   expect(bob.requests.length).toBe(0)
 })
@@ -147,7 +131,7 @@ test('detect invalid request', (done) => {
   const [alice, bob] = create()
 
   alice.once('subscribe-error', err => {
-    expect(err.code).toBe('NMSG_ERR_INVALID_REQUEST')
+    expect(err.code).toBe('NMSG_ERR_DECODE')
     alice.once('subscribe-error', err => {
       expect(err.code).toBe('NMSG_ERR_DECODE')
       done()
@@ -204,7 +188,7 @@ test('concurrency', async () => {
   alice.request('ping from alice').catch(() => {})
   alice.request('ping from alice').catch(() => {})
 
-  expect(alice.isFull).toBe(true)
+  expect(alice.inflightRequests).toBe(2)
 
   await Promise.all([alice.close(), bob.close()])
 })
