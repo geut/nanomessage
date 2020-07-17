@@ -10,7 +10,6 @@ const {
   NMSG_ERR_DECODE,
   NMSG_ERR_RESPONSE,
   NMSG_ERR_INVALID_REQUEST,
-  NMSG_ERR_TIMEOUT,
   NMSG_ERR_NOT_OPEN,
   NMSG_ERR_CLOSE
 } = require('./lib/errors')
@@ -97,7 +96,7 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   request (data) {
-    const request = new Request({ id: this[kIdGenerator].get(), data })
+    const request = new Request({ id: this[kIdGenerator].get(), data, timeout: this[kTimeout] })
     const info = request.info()
 
     this[kRequests].set(request.id, request)
@@ -260,6 +259,7 @@ class Nanomessage extends NanoresourcePromise {
     this[kFastCheckOpen]()
       .then(() => {
         if (request.finished) return
+        request.start()
         this._send(this.encode(info), info)
         return request.promise
       })

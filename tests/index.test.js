@@ -48,7 +48,7 @@ test('basic', async () => {
   expect(onSend).toHaveBeenNthCalledWith(2, { data: Buffer.from('ping from bob'), responseData: Buffer.from('pong from alice'), ephemeral: false, response: true })
 })
 
-test.skip('timeout', async () => {
+test('timeout', async () => {
   expect.assertions(1)
 
   const [alice] = create(
@@ -107,15 +107,10 @@ test('automatic cleanup requests', async () => {
   expect(bob.requests.length).toBe(0)
 })
 
-test.skip('close', async () => {
+test('close', async () => {
   expect.assertions(5)
 
   const [alice, bob] = create()
-
-  const waitForSubscribeError = new Promise(resolve => alice.once('subscribe-error', err => {
-    expect(err.code).toBe('NMSG_ERR_RESPONSE')
-    resolve()
-  }))
 
   const request = bob.request('message')
 
@@ -123,15 +118,9 @@ test.skip('close', async () => {
 
   expect(bob.requests.length).toBe(1)
 
-  await Promise.all([
-    closing,
-    waitForSubscribeError,
-    new Promise((resolve, reject) => {
-      process.nextTick(() => {
-        expect(bob.close()).resolves.toBeUndefined().then(resolve).catch(reject)
-      })
-    })
-  ])
+  await expect(alice.close()).resolves.toBeUndefined()
+  await expect(bob.close()).resolves.toBeUndefined()
+  await closing
 
   expect(bob.requests.length).toBe(0)
 })

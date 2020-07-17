@@ -8,7 +8,7 @@
     "index.js"
   ],
   "scripts": {
-    "start": "node index.js",
+    "benchmark": "node benchmark.js",
     "test": "jest --passWithNoTests",
     "posttest": "npm run lint",
     "lint": "xd-ns \"**/*.js\"",
