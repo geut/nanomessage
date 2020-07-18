@@ -25,6 +25,7 @@ const kClose = Symbol('nanomessage.close')
 const kFastCheckOpen = Symbol('nanomessage.fastcheckopen')
 const kTimeout = Symbol('nanomessage.timeout')
 const kIdGenerator = Symbol('nanomessage.idgenerator')
+const kPush = Symbol('nanomessage.push')
 
 const DEFAULT_CODEC = {
   encode (data) {
@@ -79,10 +80,16 @@ class Nanomessage extends NanoresourcePromise {
         incoming: concurrency,
         outgoing: concurrency
       }
+    } else {
+      concurrency.incoming = concurrency.incoming || Infinity
+      concurrency.outgoing = concurrency.outgoing || Infinity
     }
 
-    this[kInQueue] = fastq(this, this[kInWorker], concurrency.incoming || Infinity)
-    this[kOutQueue] = fastq(this, this[kOutWorker], concurrency.outgoing || Infinity)
+    assert(concurrency.incoming !== 0, 'concurrency.incoming cannot be 0')
+    assert(concurrency.outgoing !== 0, 'concurrency.outgoing cannot be 0')
+
+    this[kInQueue] = concurrency.incoming !== Infinity && fastq(this, this[kInWorker], concurrency.incoming)
+    this[kOutQueue] = concurrency.outgoing !== Infinity && fastq(this, this[kOutWorker], concurrency.outgoing)
     this[kRequests] = new Map()
     this[kIdGenerator] = new IdGenerator(() => this[kRequests].size + 1)
   }
@@ -92,7 +99,7 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   get inflightRequests () {
-    return this[kOutQueue].running()
+    return this[kOutQueue] ? this[kOutQueue].running() : this[kRequests].size
   }
 
   request (data) {
@@ -108,7 +115,7 @@ class Nanomessage extends NanoresourcePromise {
 
     this.emit('request-created', info)
 
-    this[kOutQueue].push(request)
+    this[kPush](this[kOutQueue], this[kOutWorker], request)
 
     return request.promise
   }
@@ -186,8 +193,8 @@ class Nanomessage extends NanoresourcePromise {
     this[kRequests].forEach(request => request.reject(new NMSG_ERR_CLOSE()))
     this[kRequests].clear()
 
-    this[kInQueue].kill()
-    this[kOutQueue].kill()
+    this[kInQueue] && this[kInQueue].kill()
+    this[kOutQueue] && this[kOutQueue].kill()
 
     await (this[kClose] && this[kClose]())
     await Promise.all(requestsToClose)
@@ -226,13 +233,18 @@ class Nanomessage extends NanoresourcePromise {
     info.response = true
     this.emit('request-received', info)
 
-    this[kInQueue].push(info, (err) => {
+    this[kPush](this[kInQueue], this[kInWorker], info, err => {
       if (err) {
         const rErr = new NMSG_ERR_RESPONSE(err.message)
         rErr.stack = err.stack || rErr.stack
         this.emit('response-error', rErr, info)
       }
     })
+  }
+
+  [kPush] (queue, worker, arg, cb) {
+    if (queue) return queue.push(arg, cb)
+    return worker.call(this, arg, err => cb && cb(err))
   }
 
   [kInWorker] (info, done) {

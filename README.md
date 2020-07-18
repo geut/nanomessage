@@ -72,7 +72,7 @@ Options include:
 - `onMessage: (msg: *, info: Object) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
 - `timeout: Infinity`: Time to wait for the response of a request.
-- `concurrency: Infinity`: Defines how many requests do you want to run in concurrent.
+- `concurrency: { incoming: Infinity, outgoing: Infinity }`: Defines how many requests do you want to run in concurrent.
 - `valueEncoding: buffer-json-encoding`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
 
 `info` is an object with:
