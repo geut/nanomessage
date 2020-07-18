@@ -2,7 +2,13 @@ const bench = require('nanobench')
 const create = require('./tests/create')
 
 bench('execute 10000 requests x 2 peers', async function (b) {
-  const [alice, bob] = create()
+  const [alice, bob] = create({
+    concurrency: 100,
+    onMessage: () => 'pong'
+  }, {
+    concurrency: 100,
+    onMessage: () => 'pong'
+  })
   await alice.open()
   await bob.open()
 
@@ -10,10 +16,10 @@ bench('execute 10000 requests x 2 peers', async function (b) {
 
   await Promise.all([
     Promise.all([...Array(10000).keys()].map(i => {
-      return alice.request('test')
+      return alice.request('ping')
     })),
     Promise.all([...Array(10000).keys()].map(i => {
-      return bob.request('test')
+      return bob.request('ping')
     }))
   ])
 

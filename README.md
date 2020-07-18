@@ -72,7 +72,7 @@ Options include:
 - `onMessage: (msg: *, info: Object) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
 - `timeout: Infinity`: Time to wait for the response of a request.
-- `concurrency: { incoming: Infinity, outgoing: Infinity }`: Defines how many requests do you want to run in concurrent.
+- `concurrency: { incoming: Infinity, outgoing: Infinity }`: Defines how many requests do you want to run (outgoing) and process (incoming) in concurrent.
 - `valueEncoding: buffer-json-encoding`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
 
 `info` is an object with:
@@ -93,11 +93,11 @@ class CustomNanomessage exports Nanomessage {
     super(...args)
   }
 
-  _subscribe () {}
+  _subscribe (onData) {}
 
-  async _send (chunk) {}
+  async _send (chunk, info) {}
 
-  async _onMessage (msg) {}
+  async _onMessage (msg, info) {}
 
   async _close () {}
 }

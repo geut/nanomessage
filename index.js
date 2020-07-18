@@ -9,7 +9,6 @@ const {
   NMSG_ERR_ENCODE,
   NMSG_ERR_DECODE,
   NMSG_ERR_RESPONSE,
-  NMSG_ERR_INVALID_REQUEST,
   NMSG_ERR_NOT_OPEN,
   NMSG_ERR_CLOSE
 } = require('./lib/errors')
@@ -64,10 +63,10 @@ class Nanomessage extends NanoresourcePromise {
 
     assert(this._send || send, 'send is required')
 
-    if (send) this._send = (buf, info) => send(buf, info)
-    if (subscribe) this._subscribe = (next) => subscribe(next)
+    if (send) this._send = send
+    if (subscribe) this._subscribe = subscribe
     if (onMessage) this.setMessageHandler(onMessage)
-    if (close) this[kClose] = () => close()
+    if (close) this[kClose] = close
     this[kTimeout] = timeout
 
     this.codec = {
@@ -136,12 +135,7 @@ class Nanomessage extends NanoresourcePromise {
   encode (info) {
     try {
       const data = this.codec.encode(info.data)
-      const buf = Buffer.allocUnsafe(
-        varint.encodingLength(data.length) +
-        data.length +
-        varint.encodingLength(info.id) +
-        varint.encodingLength(1)
-      )
+      const buf = Buffer.allocUnsafe(varint.encodingLength(data.length) + data.length + varint.encodingLength(info.id) + 1)
       let offset = 0
       varint.encode(data.length, buf, offset)
       offset += varint.encode.bytes
@@ -169,9 +163,6 @@ class Nanomessage extends NanoresourcePromise {
       request.response = !!varint.decode(buf, offset)
       return request
     } catch (err) {
-      if (err instanceof NMSG_ERR_INVALID_REQUEST) {
-        throw err
-      }
       throw new NMSG_ERR_DECODE(err.message)
     }
   }
