@@ -3,10 +3,8 @@ const create = require('./tests/create')
 
 bench('execute 10000 requests x 2 peers', async function (b) {
   const [alice, bob] = create({
-    concurrency: 100,
     onMessage: () => 'pong'
   }, {
-    concurrency: 100,
     onMessage: () => 'pong'
   })
   await alice.open()

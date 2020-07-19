@@ -24,7 +24,6 @@ const kClose = Symbol('nanomessage.close')
 const kFastCheckOpen = Symbol('nanomessage.fastcheckopen')
 const kTimeout = Symbol('nanomessage.timeout')
 const kIdGenerator = Symbol('nanomessage.idgenerator')
-const kPush = Symbol('nanomessage.push')
 
 const DEFAULT_CODEC = {
   encode (data) {
@@ -58,8 +57,8 @@ class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { subscribe, send, onMessage, close, timeout = Infinity, valueEncoding = DEFAULT_CODEC } = opts
-    let { concurrency = {} } = opts
+    const { subscribe, send, onMessage, close, timeout, valueEncoding = DEFAULT_CODEC } = opts
+    const { concurrency = {} } = opts
 
     assert(this._send || send, 'send is required')
 
@@ -67,28 +66,17 @@ class Nanomessage extends NanoresourcePromise {
     if (subscribe) this._subscribe = subscribe
     if (onMessage) this.setMessageHandler(onMessage)
     if (close) this[kClose] = close
-    this[kTimeout] = timeout
+    this.setRequestTimeout(timeout)
 
     this.codec = {
       encode: val => valueEncoding.encode(val),
       decode: buf => valueEncoding.decode(buf)
     }
 
-    if (typeof concurrency === 'number') {
-      concurrency = {
-        incoming: concurrency,
-        outgoing: concurrency
-      }
-    } else {
-      concurrency.incoming = concurrency.incoming || Infinity
-      concurrency.outgoing = concurrency.outgoing || Infinity
-    }
+    this[kInQueue] = fastq(this, this[kInWorker], 256)
+    this[kOutQueue] = fastq(this, this[kOutWorker], 256)
+    this.setConcurrency(concurrency)
 
-    assert(concurrency.incoming !== 0, 'concurrency.incoming cannot be 0')
-    assert(concurrency.outgoing !== 0, 'concurrency.outgoing cannot be 0')
-
-    this[kInQueue] = concurrency.incoming !== Infinity && fastq(this, this[kInWorker], concurrency.incoming)
-    this[kOutQueue] = concurrency.outgoing !== Infinity && fastq(this, this[kOutWorker], concurrency.outgoing)
     this[kRequests] = new Map()
     this[kIdGenerator] = new IdGenerator(() => this[kRequests].size + 1)
   }
@@ -98,7 +86,32 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   get inflightRequests () {
-    return this[kOutQueue] ? this[kOutQueue].running() : this[kRequests].size
+    return this[kOutQueue].running()
+  }
+
+  get requestTimeout () {
+    return this[kTimeout]
+  }
+
+  get concurrency () {
+    return {
+      incoming: this[kInQueue].concurrency,
+      outgoing: this[kOutQueue].concurrency
+    }
+  }
+
+  setRequestTimeout (timeout) {
+    this[kTimeout] = timeout
+  }
+
+  setConcurrency (value) {
+    if (typeof value === 'number') {
+      this[kInQueue].concurrency = value
+      this[kOutQueue].concurrency = value
+    } else {
+      this[kInQueue].concurrency = value.incoming || this[kInQueue].concurrency
+      this[kOutQueue].concurrency = value.outgoing || this[kOutQueue].concurrency
+    }
   }
 
   request (data) {
@@ -114,7 +127,7 @@ class Nanomessage extends NanoresourcePromise {
 
     this.emit('request-created', info)
 
-    this[kPush](this[kOutQueue], this[kOutWorker], request)
+    this[kOutQueue].push(request)
 
     return request.promise
   }
@@ -224,18 +237,13 @@ class Nanomessage extends NanoresourcePromise {
     info.response = true
     this.emit('request-received', info)
 
-    this[kPush](this[kInQueue], this[kInWorker], info, err => {
+    this[kInQueue].push(info, err => {
       if (err) {
         const rErr = new NMSG_ERR_RESPONSE(err.message)
         rErr.stack = err.stack || rErr.stack
         this.emit('response-error', rErr, info)
       }
     })
-  }
-
-  [kPush] (queue, worker, arg, cb) {
-    if (queue) return queue.push(arg, cb)
-    return worker.call(this, arg, err => cb && cb(err))
   }
 
   [kInWorker] (info, done) {

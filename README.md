@@ -71,8 +71,8 @@ Options include:
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
 - `onMessage: (msg: *, info: Object) -> Promise<Response>`: Async handler to process the incoming requests.
 - `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
-- `timeout: Infinity`: Time to wait for the response of a request.
-- `concurrency: { incoming: Infinity, outgoing: Infinity }`: Defines how many requests do you want to run (outgoing) and process (incoming) in concurrent.
+- `timeout: null`: Time to wait for the response of a request. Disabled by default.
+- `concurrency: { incoming: 256, outgoing: 256 }`: Defines how many requests do you want to run (outgoing) and process (incoming) in concurrent.
 - `valueEncoding: buffer-json-encoding`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
 
 `info` is an object with:
@@ -102,6 +102,30 @@ class CustomNanomessage exports Nanomessage {
   async _close () {}
 }
 ```
+
+#### `nm.requests: Array<Requests>`
+
+Get the current list of requests (inflight and pending).
+
+#### `nm.inflightRequests: Number`
+
+Number of requests processing in the queue.
+
+#### `nm.requestTimeout: Number`
+
+Get the current request timeout.
+
+#### `nm.concurrency: { incoming: Number, outgoing: Number }`
+
+Get the current concurrency.
+
+#### `nm.setRequestsTimeout(Number)`
+
+Change the timeout for the future requests.
+
+#### `nm.setConcurrency(Number | { incoming: Number, outgoing: Number })`
+
+Update the concurrency number of operations for incoming and outgoing requests.
 
 #### `nm.open() -> Promise`
 
