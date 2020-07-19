@@ -73,7 +73,7 @@ Options include:
 - `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
 - `timeout: null`: Time to wait for the response of a request. Disabled by default.
 - `concurrency: { incoming: 256, outgoing: 256 }`: Defines how many requests do you want to run (outgoing) and process (incoming) in concurrent.
-- `valueEncoding: buffer-json-encoding`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
+- `valueEncoding: buffer-json`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
 
 `info` is an object with:
 

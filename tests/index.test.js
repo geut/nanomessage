@@ -126,19 +126,15 @@ test('close', async () => {
 })
 
 test('detect invalid request', (done) => {
-  expect.assertions(2)
+  expect.assertions(1)
 
   const [alice, bob] = create()
 
   alice.once('subscribe-error', err => {
     expect(err.code).toBe('NMSG_ERR_DECODE')
-    alice.once('subscribe-error', err => {
-      expect(err.code).toBe('NMSG_ERR_DECODE')
-      done()
-    })
+    done()
   })
 
-  bob.stream.write(Buffer.from(JSON.stringify({ msg: 'not valid' })))
   bob.stream.write('not valid')
 })
 

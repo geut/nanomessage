@@ -16,7 +16,6 @@
     "prepublishOnly": "npm test"
   },
   "dependencies": {
-    "buffer-json-encoding": "^1.0.2",
     "fastq": "^1.8.0",
     "nanocustomassert": "^1.0.0",
     "nanoerror": "^1.1.0",

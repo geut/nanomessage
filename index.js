@@ -1,13 +1,10 @@
 const assert = require('nanocustomassert')
 const { NanoresourcePromise } = require('nanoresource-promise/emitter')
 const fastq = require('fastq')
-const varint = require('varint')
-const bufferJson = require('buffer-json-encoding')
 
 const Request = require('./lib/request')
+const createCodec = require('./lib/codec')
 const {
-  NMSG_ERR_ENCODE,
-  NMSG_ERR_DECODE,
   NMSG_ERR_RESPONSE,
   NMSG_ERR_NOT_OPEN,
   NMSG_ERR_CLOSE
@@ -24,15 +21,7 @@ const kClose = Symbol('nanomessage.close')
 const kFastCheckOpen = Symbol('nanomessage.fastcheckopen')
 const kTimeout = Symbol('nanomessage.timeout')
 const kIdGenerator = Symbol('nanomessage.idgenerator')
-
-const DEFAULT_CODEC = {
-  encode (data) {
-    return bufferJson.encode({ data })
-  },
-  decode (buf) {
-    return bufferJson.decode(buf).data
-  }
-}
+const kCodec = Symbol('nanomessage.codec')
 
 class IdGenerator {
   constructor (generate) {
@@ -57,7 +46,7 @@ class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { subscribe, send, onMessage, close, timeout, valueEncoding = DEFAULT_CODEC } = opts
+    const { subscribe, send, onMessage, close, timeout, valueEncoding } = opts
     const { concurrency = {} } = opts
 
     assert(this._send || send, 'send is required')
@@ -68,10 +57,7 @@ class Nanomessage extends NanoresourcePromise {
     if (close) this[kClose] = close
     this.setRequestTimeout(timeout)
 
-    this.codec = {
-      encode: val => valueEncoding.encode(val),
-      decode: buf => valueEncoding.decode(buf)
-    }
+    this[kCodec] = createCodec(valueEncoding)
 
     this[kInQueue] = fastq(this, this[kInWorker], 256)
     this[kOutQueue] = fastq(this, this[kOutWorker], 256)
@@ -79,6 +65,10 @@ class Nanomessage extends NanoresourcePromise {
 
     this[kRequests] = new Map()
     this[kIdGenerator] = new IdGenerator(() => this[kRequests].size + 1)
+  }
+
+  get codec () {
+    return this[kCodec]
   }
 
   get requests () {
@@ -136,48 +126,13 @@ class Nanomessage extends NanoresourcePromise {
     return this[kFastCheckOpen]()
       .then(() => {
         const info = Request.info({ id: 0, data })
-        this._send(this.encode(info), info)
+        this._send(this[kCodec].encode(info), info)
       })
   }
 
   setMessageHandler (onMessage) {
     this._onMessage = onMessage
     return this
-  }
-
-  encode (info) {
-    try {
-      const data = this.codec.encode(info.data)
-      const buf = Buffer.allocUnsafe(varint.encodingLength(data.length) + data.length + varint.encodingLength(info.id) + 1)
-      let offset = 0
-      varint.encode(data.length, buf, offset)
-      offset += varint.encode.bytes
-      data.copy(buf, offset)
-      offset += data.length
-      varint.encode(info.id, buf, offset)
-      offset += varint.encode.bytes
-      varint.encode(info.response ? 1 : 0, buf, offset)
-      return buf
-    } catch (err) {
-      throw new NMSG_ERR_ENCODE(err.message)
-    }
-  }
-
-  decode (buf) {
-    try {
-      const request = {}
-      let offset = 0
-      const dataLength = varint.decode(buf, 0)
-      offset += varint.decode.bytes
-      request.data = this.codec.decode(buf.slice(offset, offset + dataLength))
-      offset += dataLength
-      request.id = varint.decode(buf, offset)
-      offset += varint.decode.bytes
-      request.response = !!varint.decode(buf, offset)
-      return request
-    } catch (err) {
-      throw new NMSG_ERR_DECODE(err.message)
-    }
   }
 
   async _onMessage () {
@@ -213,7 +168,7 @@ class Nanomessage extends NanoresourcePromise {
   [kMessageHandler] (message) {
     if (this.closed || this.closing) return
 
-    const info = Request.info(this.decode(message))
+    const info = Request.info(this[kCodec].decode(message))
 
     // resolve response
     if (info.response) {
@@ -254,7 +209,7 @@ class Nanomessage extends NanoresourcePromise {
 
         info.responseData = data
 
-        this._send(this.encode({
+        this._send(this[kCodec].encode({
           id: info.id,
           response: info.response,
           data
@@ -271,7 +226,7 @@ class Nanomessage extends NanoresourcePromise {
       .then(() => {
         if (request.finished) return
         request.start()
-        this._send(this.encode(info), info)
+        this._send(this[kCodec].encode(info), info)
         return request.promise
       })
       .then(() => done())
@@ -282,4 +237,5 @@ class Nanomessage extends NanoresourcePromise {
 const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
 nanomessage.errors = require('./lib/errors')
+nanomessage.BJSON = require('./lib/buffer-json')
 module.exports = nanomessage
