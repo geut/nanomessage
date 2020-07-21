@@ -17,6 +17,7 @@ const kInWorker = Symbol('nanomessage.inworker')
 const kOutWorker = Symbol('nanomessage.outworker')
 const kUnsubscribe = Symbol('nanomessage.unsubscribe')
 const kMessageHandler = Symbol('nanomessage.messagehandler')
+const kOpen = Symbol('nanomessage.open')
 const kClose = Symbol('nanomessage.close')
 const kFastCheckOpen = Symbol('nanomessage.fastcheckopen')
 const kTimeout = Symbol('nanomessage.timeout')
@@ -46,7 +47,7 @@ class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { subscribe, send, onMessage, close, timeout, valueEncoding } = opts
+    const { subscribe, send, onMessage, open, close, timeout, valueEncoding } = opts
     const { concurrency = {} } = opts
 
     assert(this._send || send, 'send is required')
@@ -54,6 +55,7 @@ class Nanomessage extends NanoresourcePromise {
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
     if (onMessage) this.setMessageHandler(onMessage)
+    if (open) this[kOpen] = open
     if (close) this[kClose] = close
     this.setRequestTimeout(timeout)
 
@@ -141,7 +143,7 @@ class Nanomessage extends NanoresourcePromise {
 
   async _open () {
     assert(this._subscribe, 'subscribe is required')
-
+    await (this[kOpen] && this[kOpen]())
     this[kUnsubscribe] = this._subscribe(this[kMessageHandler].bind(this))
   }
 

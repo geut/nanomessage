@@ -42,13 +42,15 @@ server.on('connection', function connection (ws) {
 // client.js
 const ws = new WebSocket('ws://127.0.0.1:3000')
 const Bob = nanomessage({
-  subscribe (ondata) {
-    ws.on('message', ondata)
-  },
-  async send (msg) {
+  async open() {
     if (ws.readyState === 0) {
       await new Promise(resolve => ws.once('open', resolve))
     }
+  },
+  subscribe (ondata) {
+    ws.on('message', ondata)
+  },
+  send (msg) {
     ws.send(msg)
   }
 })
@@ -70,6 +72,7 @@ Options include:
 - `send: (chunk: Buffer, info: Object) -> void`: Defines how to send the messages provide it by nanomessage to the low level solution.
 - `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
 - `onMessage: (msg: *, info: Object) -> Promise<Response>`: Async handler to process the incoming requests.
+- `open: () -> Promise`: Defines a function to run before the nanomessage instance is opened.
 - `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
 - `timeout: null`: Time to wait for the response of a request. Disabled by default.
 - `concurrency: { incoming: 256, outgoing: 256 }`: Defines how many requests do you want to run (outgoing) and process (incoming) in concurrent.
@@ -99,7 +102,13 @@ class CustomNanomessage exports Nanomessage {
 
   async _onMessage (msg, info) {}
 
-  async _close () {}
+  async _open() {
+    await super.open()
+  }
+
+  async _close () {
+    await super.close()
+  }
 }
 ```
 
@@ -146,10 +155,6 @@ Send a `ephemeral` message. `data` can be any serializable type supported by you
 #### `nm.setMessageHandler(handler) -> Nanomessage`
 
 Defines a request handler. It will override the old handler.
-
-#### `nm.close() -> Promise<*>`
-
-Close the nanomessage instance.
 
 ## <a name="issues"></a> Issues
 
