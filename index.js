@@ -50,8 +50,6 @@ class Nanomessage extends NanoresourcePromise {
     const { subscribe, send, onMessage, open, close, timeout, valueEncoding } = opts
     const { concurrency = {} } = opts
 
-    assert(this._send || send, 'send is required')
-
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
     if (onMessage) this.setMessageHandler(onMessage)
@@ -111,15 +109,18 @@ class Nanomessage extends NanoresourcePromise {
     const info = request.info()
 
     this[kRequests].set(request.id, request)
-    request.onFinish(err => {
+    request.onFinish(() => {
       this[kRequests].delete(request.id)
       this[kIdGenerator].release(request.id)
-      this.emit('request-ended', err, info)
     })
 
     this.emit('request-created', info)
 
-    this[kOutQueue].push(request)
+    this[kOutQueue].push(request, (err, data) => {
+      info.response = true
+      info.responseData = data
+      this.emit('request-ended', err, info)
+    })
 
     return request.promise
   }
@@ -231,7 +232,7 @@ class Nanomessage extends NanoresourcePromise {
         this._send(this[kCodec].encode(info), info)
         return request.promise
       })
-      .then(() => done())
+      .then(data => done(null, data))
       .catch(err => done(err))
   }
 }

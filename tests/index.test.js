@@ -1,16 +1,10 @@
 const create = require('./create')
 
-const nanomessage = require('..')
-
 const {
   NMSG_ERR_TIMEOUT,
   NMSG_ERR_CANCEL,
   NMSG_ERR_CLOSE
 } = require('../lib/errors')
-
-test('configuration', () => {
-  expect(() => nanomessage()).toThrow(/send is required/)
-})
 
 test('basic', async () => {
   expect.assertions(14)
