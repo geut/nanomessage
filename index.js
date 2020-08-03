@@ -4,17 +4,12 @@ const fastq = require('fastq')
 
 const Request = require('./lib/request')
 const createCodec = require('./lib/codec')
-const {
-  NMSG_ERR_RESPONSE,
-  NMSG_ERR_NOT_OPEN,
-  NMSG_ERR_CLOSE
-} = require('./lib/errors')
+const errors = require('./lib/errors')
+const IdGenerator = require('./lib/id-generator')
 
 const kRequests = Symbol('nanomessage.requests')
 const kInQueue = Symbol('nanomessage.inqueue')
 const kOutQueue = Symbol('nanomessage.outqueue')
-const kInWorker = Symbol('nanomessage.inworker')
-const kOutWorker = Symbol('nanomessage.outworker')
 const kUnsubscribe = Symbol('nanomessage.unsubscribe')
 const kMessageHandler = Symbol('nanomessage.messagehandler')
 const kOpen = Symbol('nanomessage.open')
@@ -24,23 +19,36 @@ const kTimeout = Symbol('nanomessage.timeout')
 const kIdGenerator = Symbol('nanomessage.idgenerator')
 const kCodec = Symbol('nanomessage.codec')
 
-class IdGenerator {
-  constructor (generate) {
-    this._generate = generate
-    this._free = []
-  }
+function inWorker (info, done) {
+  this[kFastCheckOpen]()
+    .then(() => this._onMessage(info.data, info))
+    .then(data => {
+      if (this.closed || this.closing) return done()
 
-  get () {
-    if (!this._free.length) {
-      return this._generate()
-    }
+      info.responseData = data
 
-    return this._free.pop()
-  }
+      this._send(this[kCodec].encode({
+        id: info.id,
+        response: info.response,
+        data
+      }), info)
 
-  release (id) {
-    this._free.push(id)
-  }
+      done()
+    })
+    .catch(err => done(err))
+}
+
+function outWorker (request, done) {
+  const info = request.info()
+  this[kFastCheckOpen]()
+    .then(() => {
+      if (request.finished) return
+      request.start()
+      this._send(this[kCodec].encode(info), info)
+      return request.promise
+    })
+    .then(data => done(null, data))
+    .catch(err => done(err))
 }
 
 class Nanomessage extends NanoresourcePromise {
@@ -59,8 +67,8 @@ class Nanomessage extends NanoresourcePromise {
 
     this[kCodec] = createCodec(valueEncoding)
 
-    this[kInQueue] = fastq(this, this[kInWorker], 256)
-    this[kOutQueue] = fastq(this, this[kOutWorker], 256)
+    this[kInQueue] = fastq(this, inWorker, 256)
+    this[kOutQueue] = fastq(this, outWorker, 256)
     this.setConcurrency(concurrency)
 
     this[kRequests] = new Map()
@@ -152,7 +160,7 @@ class Nanomessage extends NanoresourcePromise {
     if (this[kUnsubscribe]) this[kUnsubscribe]()
 
     const requestsToClose = []
-    this[kRequests].forEach(request => request.reject(new NMSG_ERR_CLOSE()))
+    this[kRequests].forEach(request => request.reject(new errors.NMSG_ERR_CLOSE()))
     this[kRequests].clear()
 
     this[kInQueue] && this[kInQueue].kill()
@@ -163,9 +171,9 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   async [kFastCheckOpen] () {
-    if (this.closed || this.closing) throw new NMSG_ERR_CLOSE()
+    if (this.closed || this.closing) throw new errors.NMSG_ERR_CLOSE()
     if (this.opening) return this.open()
-    if (!this.opened) throw new NMSG_ERR_NOT_OPEN()
+    if (!this.opened) throw new errors.NMSG_ERR_NOT_OPEN()
   }
 
   [kMessageHandler] (message) {
@@ -185,7 +193,7 @@ class Nanomessage extends NanoresourcePromise {
       this[kFastCheckOpen]()
         .then(() => this._onMessage(info.data, info))
         .catch(err => {
-          const rErr = new NMSG_ERR_RESPONSE(err.message)
+          const rErr = new errors.NMSG_ERR_RESPONSE(err.message)
           rErr.stack = err.stack || rErr.stack
           this.emit('response-error', rErr, info)
         })
@@ -197,48 +205,16 @@ class Nanomessage extends NanoresourcePromise {
 
     this[kInQueue].push(info, err => {
       if (err) {
-        const rErr = new NMSG_ERR_RESPONSE(err.message)
+        const rErr = new errors.NMSG_ERR_RESPONSE(err.message)
         rErr.stack = err.stack || rErr.stack
         this.emit('response-error', rErr, info)
       }
     })
   }
-
-  [kInWorker] (info, done) {
-    this[kFastCheckOpen]()
-      .then(() => this._onMessage(info.data, info))
-      .then(data => {
-        if (this.closed || this.closing) return done()
-
-        info.responseData = data
-
-        this._send(this[kCodec].encode({
-          id: info.id,
-          response: info.response,
-          data
-        }), info)
-
-        done()
-      })
-      .catch(err => done(err))
-  }
-
-  [kOutWorker] (request, done) {
-    const info = request.info()
-    this[kFastCheckOpen]()
-      .then(() => {
-        if (request.finished) return
-        request.start()
-        this._send(this[kCodec].encode(info), info)
-        return request.promise
-      })
-      .then(data => done(null, data))
-      .catch(err => done(err))
-  }
 }
 
 const nanomessage = (opts) => new Nanomessage(opts)
 nanomessage.Nanomessage = Nanomessage
-nanomessage.errors = require('./lib/errors')
+nanomessage.errors = errors
 nanomessage.BJSON = require('./lib/buffer-json')
 module.exports = nanomessage
