@@ -69,11 +69,11 @@ Create a new nanomessage.
 
 Options include:
 
-- `send: (chunk: Buffer, info: Object) -> void`: Defines how to send the messages provide it by nanomessage to the low level solution.
-- `subscribe: (onData: function) -> UnsubscribeFunction`: Defines how to read data from the low level solution.
-- `onMessage: (msg: *, info: Object) -> Promise<Response>`: Async handler to process the incoming requests.
-- `open: () -> Promise`: Defines a function to run before the nanomessage instance is opened.
-- `close: () -> Promise`: Defines a function to run after the nanomessage instance was close.
+- `send: (chunk: Buffer, info: Object) => (Promise|undefined)`: Defines how to send the messages provide it by nanomessage to the low level solution.
+- `subscribe: (onData: function) => UnsubscribeFunction`: Defines how to read data from the low level solution.
+- `onMessage: (msg: *, info: Object) => Promise<Response>`: Async handler to process the incoming requests.
+- `open: () => Promise`: Defines a function to run before the nanomessage instance is opened.
+- `close: () => Promise`: Defines a function to run after the nanomessage instance was close.
 - `timeout: null`: Time to wait for the response of a request. Disabled by default.
 - `concurrency: { incoming: 256, outgoing: 256 }`: Defines how many requests do you want to run (outgoing) and process (incoming) in concurrent.
 - `valueEncoding: buffer-json`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
@@ -136,23 +136,23 @@ Change the timeout for the future requests.
 
 Update the concurrency number of operations for incoming and outgoing requests.
 
-#### `nm.open() -> Promise`
+#### `nm.open() => Promise`
 
 Opens nanomessage and start listening for incoming data.
 
-#### `nm.close() -> Promise`
+#### `nm.close() => Promise`
 
 Closes nanomessage and unsubscribe from incoming data.
 
-#### `nm.request(data) -> Promise<Response>`
+#### `nm.request(data) => Promise<Response>`
 
 Send a request and wait for a response. `data` can be any serializable type supported by your codec.
 
-#### `nm.send(data) -> Promise<Response>`
+#### `nm.send(data) => Promise<Response>`
 
 Send a `ephemeral` message. `data` can be any serializable type supported by your codec.
 
-#### `nm.setMessageHandler(handler) -> Nanomessage`
+#### `nm.setMessageHandler(handler) => Nanomessage`
 
 Defines a request handler. It will override the old handler.
 

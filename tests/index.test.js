@@ -1,10 +1,12 @@
 const create = require('./create')
 
 const {
-  NMSG_ERR_TIMEOUT,
-  NMSG_ERR_CANCEL,
-  NMSG_ERR_CLOSE
-} = require('../lib/errors')
+  errors: {
+    NMSG_ERR_TIMEOUT,
+    NMSG_ERR_CANCEL,
+    NMSG_ERR_CLOSE
+  }
+} = require('..')
 
 test('basic', async () => {
   expect.assertions(14)
