@@ -214,7 +214,7 @@ class Nanomessage extends NanoresourcePromise {
    * @returns {Promise|undefined}
    */
   async _send (buf, info) {
-    throw new Error('send not implemented')
+    throw new Error('_send not implemented')
   }
 
   /**
@@ -224,7 +224,7 @@ class Nanomessage extends NanoresourcePromise {
    * @returns {Promise<*>}
    */
   async _onMessage (data, info) {
-    throw new Error('onMessage not implemented')
+    throw new Error('_onMessage not implemented')
   }
 
   async _open () {
