@@ -54,10 +54,23 @@ function outWorker (request, done) {
 }
 
 class Nanomessage extends NanoresourcePromise {
+  /**
+   * Creates an instance of Nanomessage.
+   * @param {Object} [opts={}]
+   * @param {(buf: Buffer, info: Object) => Promise|undefined} [opts.send]
+   * @param {function} [opts.subscribe]
+   * @param {(data: Object, info: Object) => Promise<*>} [opts.onMessage]
+   * @param {function} [opts.open]
+   * @param {function} [opts.close]
+   * @param {number} [opts.timeout]
+   * @param {Object} [opts.valueEncoding]
+   * @param {({ incoming: number, outgoing: number }|number)} [opts.concurrency]
+   * @memberof Nanomessage
+   */
   constructor (opts = {}) {
     super()
 
-    const { subscribe, send, onMessage, open, close, timeout, valueEncoding } = opts
+    const { send, subscribe, onMessage, open, close, timeout, valueEncoding } = opts
     const { concurrency = {} } = opts
 
     if (send) this._send = send
@@ -77,22 +90,42 @@ class Nanomessage extends NanoresourcePromise {
     this[kIdGenerator] = new IdGenerator(() => this[kRequests].size + 1)
   }
 
+  /**
+   * @readonly
+   * @type {Object}
+   */
   get codec () {
     return this[kCodec]
   }
 
+  /**
+   * @readonly
+   * @type {Array<Request>}
+   */
   get requests () {
     return Array.from(this[kRequests].values())
   }
 
+  /**
+   * @readonly
+   * @type {number}
+   */
   get inflightRequests () {
     return this[kOutQueue].running()
   }
 
+  /**
+   * @readonly
+   * @type {number}
+   */
   get requestTimeout () {
     return this[kTimeout]
   }
 
+  /**
+   * @readonly
+   * @type {Object}
+   */
   get concurrency () {
     return {
       incoming: this[kInQueue].concurrency,
@@ -100,10 +133,19 @@ class Nanomessage extends NanoresourcePromise {
     }
   }
 
+  /**
+   * @param {number} timeout
+   * @returns {Nanomessage}
+   */
   setRequestTimeout (timeout) {
     this[kTimeout] = timeout
+    return this
   }
 
+  /**
+   * @param {({ incoming: number, outgoing: number }|number)} value
+   * @returns {Nanomessage}
+   */
   setConcurrency (value) {
     if (typeof value === 'number') {
       this[kInQueue].concurrency = value
@@ -112,8 +154,15 @@ class Nanomessage extends NanoresourcePromise {
       this[kInQueue].concurrency = value.incoming || this[kInQueue].concurrency
       this[kOutQueue].concurrency = value.outgoing || this[kOutQueue].concurrency
     }
+    return this
   }
 
+  /**
+   * Send a request and wait for the response.
+   *
+   * @param {*} data
+   * @returns {Promise<*>}
+   */
   request (data) {
     const request = new Request({ id: this[kIdGenerator].get(), data, timeout: this[kTimeout] })
     const info = request.info()
@@ -135,6 +184,12 @@ class Nanomessage extends NanoresourcePromise {
     return request.promise
   }
 
+  /**
+   * Send a ephemeral message.
+   *
+   * @param {*} data
+   * @returns {Promise}
+   */
   send (data) {
     return this[kFastCheckOpen]()
       .then(() => {
@@ -143,16 +198,32 @@ class Nanomessage extends NanoresourcePromise {
       })
   }
 
+  /**
+   * @param {(data: Object, info: Object) => Promise<*>} onMessage
+   * @returns {Nanomessage}
+   */
   setMessageHandler (onMessage) {
     this._onMessage = onMessage
     return this
   }
 
-  async _send () {
+  /**
+   * @abstract
+   * @param {Buffer} buf
+   * @param {Object} info
+   * @returns {Promise|undefined}
+   */
+  async _send (buf, info) {
     throw new Error('send not implemented')
   }
 
-  async _onMessage () {
+  /**
+   * @abstract
+   * @param {Object} data
+   * @param {Object} info
+   * @returns {Promise<*>}
+   */
+  async _onMessage (data, info) {
     throw new Error('onMessage not implemented')
   }
 
