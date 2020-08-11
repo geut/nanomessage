@@ -70,8 +70,7 @@ class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { send, subscribe, onMessage, open, close, timeout, valueEncoding } = opts
-    const { concurrency = {} } = opts
+    const { send, subscribe, onMessage, open, close, timeout, valueEncoding, concurrency = 256 } = opts
 
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
@@ -82,8 +81,8 @@ class Nanomessage extends NanoresourcePromise {
 
     this[kCodec] = createCodec(valueEncoding)
 
-    this[kInQueue] = fastq(this, inWorker, 256)
-    this[kOutQueue] = fastq(this, outWorker, 256)
+    this[kInQueue] = fastq(this, inWorker, 1)
+    this[kOutQueue] = fastq(this, outWorker, 1)
     this.setConcurrency(concurrency)
 
     this[kRequests] = new Map()
