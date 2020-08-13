@@ -103,11 +103,11 @@ class CustomNanomessage exports Nanomessage {
   async _onMessage (msg, info) {}
 
   async _open() {
-    await super.open()
+    await super._open()
   }
 
   async _close () {
-    await super.close()
+    await super._close()
   }
 }
 ```
