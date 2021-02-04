@@ -184,3 +184,32 @@ test('concurrency', async () => {
 
   await Promise.all([alice.close(), bob.close()])
 })
+
+test('abort signal', async () => {
+  expect.assertions(2)
+
+  const [alice] = create(
+    {},
+    {
+      onMessage: async () => {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+    }
+  )
+
+  {
+    const controller = new AbortController()
+    const signal = controller.signal
+    controller.abort()
+    const request = alice.request('ping', { signal })
+    await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
+  }
+
+  {
+    const controller = new AbortController()
+    const signal = controller.signal
+    const request = alice.request('ping', { signal })
+    setTimeout(() => controller.abort(), 500)
+    await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
+  }
+})

@@ -11,7 +11,7 @@ class Request {
   }
 
   constructor (info) {
-    const { id, data, response = false, timeout } = info
+    const { id, data, response = false, timeout, signal } = info
 
     this.id = id
     this.data = data
@@ -45,6 +45,16 @@ class Request {
     }
 
     this.promise.cancel = this.cancel.bind(this)
+
+    if (signal) {
+      if (signal.aborted) {
+        process.nextTick(() => this.cancel())
+      } else {
+        signal.addEventListener('abort', () => {
+          this.cancel()
+        })
+      }
+    }
   }
 
   start () {

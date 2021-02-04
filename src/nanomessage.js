@@ -160,10 +160,13 @@ class Nanomessage extends NanoresourcePromise {
    * Send a request and wait for the response.
    *
    * @param {*} data
+   * @param {Object} [opts]
+   * @param {number} [opts.timeout]
+   * @param {AbortSignal} [opts.signal]
    * @returns {Promise<*>}
    */
-  request (data) {
-    const request = new Request({ id: this[kIdGenerator].get(), data, timeout: this[kTimeout] })
+  request (data, opts = {}) {
+    const request = new Request({ id: this[kIdGenerator].get(), data, timeout: opts.timeout || this[kTimeout], signal: opts.signal })
     const info = request.info()
 
     this[kRequests].set(request.id, request)

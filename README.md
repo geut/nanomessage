@@ -144,9 +144,12 @@ Opens nanomessage and start listening for incoming data.
 
 Closes nanomessage and unsubscribe from incoming data.
 
-#### `nm.request(data) => Promise<Response>`
+#### `nm.request(data, [opts]) => Promise<Response>`
 
 Send a request and wait for a response. `data` can be any serializable type supported by your codec.
+
+- `opts.timeout: number`: Define a custom timeout for the current request.
+- `opts.signal: AbortSignal`: Set an abort signal object to cancel the request.
 
 #### `nm.send(data) => Promise<Response>`
 
