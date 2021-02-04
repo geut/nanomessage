@@ -26,9 +26,21 @@ class Request {
       _reject = reject
     })
 
+    this.promise.cancel = this.cancel.bind(this)
+
+    const onAbort = () => this.cancel()
+    if (signal) {
+      if (signal.aborted) {
+        process.nextTick(onAbort)
+      } else {
+        signal.addEventListener('abort', onAbort)
+      }
+    }
+
     this.resolve = (data) => {
       if (!this.finished) {
         this.timer && clearTimeout(this.timer)
+        signal && signal.removeEventListener('abort', onAbort)
         this.finished = true
         this._onFinish()
         _resolve(data)
@@ -38,21 +50,10 @@ class Request {
     this.reject = (err) => {
       if (!this.finished) {
         this.timer && clearTimeout(this.timer)
+        signal && signal.removeEventListener('abort', onAbort)
         this.finished = true
         this._onFinish(err)
         _reject(err)
-      }
-    }
-
-    this.promise.cancel = this.cancel.bind(this)
-
-    if (signal) {
-      if (signal.aborted) {
-        process.nextTick(() => this.cancel())
-      } else {
-        signal.addEventListener('abort', () => {
-          this.cancel()
-        })
       }
     }
   }
