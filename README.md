@@ -155,6 +155,10 @@ Send a request and wait for a response. `data` can be any serializable type supp
 
 Send a `ephemeral` message. `data` can be any serializable type supported by your codec.
 
+#### `nm.processIncomingMessage(buf: Buffer)`
+
+Access directly to the handler of incoming messages. It's recommended to use the subscription model instead.
+
 #### `nm.setMessageHandler(handler) => Nanomessage`
 
 Defines a request handler. It will override the old handler.
