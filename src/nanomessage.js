@@ -1,4 +1,3 @@
-const assert = require('nanocustomassert')
 const { NanoresourcePromise } = require('nanoresource-promise/emitter')
 const fastq = require('fastq')
 
@@ -11,7 +10,6 @@ const kRequests = Symbol('nanomessage.requests')
 const kInQueue = Symbol('nanomessage.inqueue')
 const kOutQueue = Symbol('nanomessage.outqueue')
 const kUnsubscribe = Symbol('nanomessage.unsubscribe')
-const kMessageHandler = Symbol('nanomessage.messagehandler')
 const kOpen = Symbol('nanomessage.open')
 const kClose = Symbol('nanomessage.close')
 const kFastCheckOpen = Symbol('nanomessage.fastcheckopen')
@@ -210,55 +208,13 @@ class Nanomessage extends NanoresourcePromise {
   }
 
   /**
-   * @abstract
    * @param {Buffer} buf
-   * @param {Object} info
-   * @returns {Promise|undefined}
+   * @returns {undefined}
    */
-  async _send (buf, info) {
-    throw new Error('_send not implemented')
-  }
-
-  /**
-   * @abstract
-   * @param {Object} data
-   * @param {Object} info
-   * @returns {Promise<*>}
-   */
-  async _onMessage (data, info) {
-    throw new Error('_onMessage not implemented')
-  }
-
-  async _open () {
-    assert(!!this._subscribe, 'subscribe is required')
-    await (this[kOpen] && this[kOpen]())
-    this[kUnsubscribe] = this._subscribe(this[kMessageHandler].bind(this))
-  }
-
-  async _close () {
-    if (this[kUnsubscribe]) this[kUnsubscribe]()
-
-    const requestsToClose = []
-    this[kRequests].forEach(request => request.reject(new NMSG_ERR_CLOSE()))
-    this[kRequests].clear()
-
-    this[kInQueue] && this[kInQueue].kill()
-    this[kOutQueue] && this[kOutQueue].kill()
-
-    await (this[kClose] && this[kClose]())
-    await Promise.all(requestsToClose)
-  }
-
-  async [kFastCheckOpen] () {
-    if (this.closed || this.closing) throw new NMSG_ERR_CLOSE()
-    if (this.opening) return this.open()
-    if (!this.opened) throw new NMSG_ERR_NOT_OPEN()
-  }
-
-  [kMessageHandler] (message) {
+  processIncomingMessage (buf) {
     if (this.closed || this.closing) return
 
-    const info = Request.info(this[kCodec].decode(message))
+    const info = Request.info(this[kCodec].decode(buf))
 
     // resolve response
     if (info.response) {
@@ -289,6 +245,51 @@ class Nanomessage extends NanoresourcePromise {
         this.emit('response-error', rErr, info)
       }
     })
+  }
+
+  /**
+   * @abstract
+   * @param {Buffer} buf
+   * @param {Object} info
+   * @returns {Promise|undefined}
+   */
+  async _send (buf, info) {
+    throw new Error('_send not implemented')
+  }
+
+  /**
+   * @abstract
+   * @param {Object} data
+   * @param {Object} info
+   * @returns {Promise<*>}
+   */
+  async _onMessage (data, info) {
+    throw new Error('_onMessage not implemented')
+  }
+
+  async _open () {
+    await (this[kOpen] && this[kOpen]())
+    this[kUnsubscribe] = this._subscribe && this._subscribe(this.processIncomingMessage.bind(this))
+  }
+
+  async _close () {
+    if (this[kUnsubscribe]) this[kUnsubscribe]()
+
+    const requestsToClose = []
+    this[kRequests].forEach(request => request.reject(new NMSG_ERR_CLOSE()))
+    this[kRequests].clear()
+
+    this[kInQueue] && this[kInQueue].kill()
+    this[kOutQueue] && this[kOutQueue].kill()
+
+    await (this[kClose] && this[kClose]())
+    await Promise.all(requestsToClose)
+  }
+
+  async [kFastCheckOpen] () {
+    if (this.closed || this.closing) throw new NMSG_ERR_CLOSE()
+    if (this.opening) return this.open()
+    if (!this.opened) throw new NMSG_ERR_NOT_OPEN()
   }
 }
 
