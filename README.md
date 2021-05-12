@@ -70,7 +70,7 @@ Create a new nanomessage.
 Options include:
 
 - `send: (chunk: Buffer, info: Object) => (Promise|undefined)`: Defines how to send the messages provide it by nanomessage to the low level solution.
-- `subscribe: (onData: function) => UnsubscribeFunction`: Defines how to read data from the low level solution.
+- `subscribe: (onData: buf => Promise) => UnsubscribeFunction`: Defines how to read data from the low level solution.
 - `onMessage: (msg: *, info: Object) => Promise<Response>`: Async handler to process the incoming requests.
 - `open: () => Promise`: Defines a function to run before the nanomessage instance is opened.
 - `close: () => Promise`: Defines a function to run after the nanomessage instance was close.
@@ -155,7 +155,7 @@ Send a request and wait for a response. `data` can be any serializable type supp
 
 Send a `ephemeral` message. `data` can be any serializable type supported by your codec.
 
-#### `nm.processIncomingMessage(buf: Buffer)`
+#### `nm.processIncomingMessage(buf: Buffer) => Promise`
 
 Access directly to the handler of incoming messages. It's recommended to use the subscription model instead.
 

@@ -17,9 +17,9 @@ const kTimeout = Symbol('nanomessage.timeout')
 const kIdGenerator = Symbol('nanomessage.idgenerator')
 const kCodec = Symbol('nanomessage.codec')
 
-function inWorker (info, done) {
+function inWorker ({ info, onMessage }, done) {
   this[kFastCheckOpen]()
-    .then(() => this._onMessage(info.data, info))
+    .then(() => onMessage(info.data, info))
     .then(data => {
       if (this.closed || this.closing) return done()
 
@@ -209,9 +209,10 @@ class Nanomessage extends NanoresourcePromise {
 
   /**
    * @param {Buffer} buf
-   * @returns {undefined}
+   * @param {function} onMessage
+   * @returns {Promise}
    */
-  processIncomingMessage (buf) {
+  async processIncomingMessage (buf, onMessage = () => {}) {
     if (this.closed || this.closing) return
 
     const info = Request.info(this[kCodec].decode(buf))
@@ -225,26 +226,29 @@ class Nanomessage extends NanoresourcePromise {
 
     if (info.ephemeral) {
       this.emit('request-received', info)
-      this[kFastCheckOpen]()
-        .then(() => this._onMessage(info.data, info))
+      return this[kFastCheckOpen]()
+        .then(() => onMessage(info.data, info))
         .catch(err => {
           const rErr = new NMSG_ERR_RESPONSE(err.message)
           rErr.stack = err.stack || rErr.stack
           this.emit('response-error', rErr, info)
+          throw rErr
         })
-      return
     }
 
     info.response = true
     this.emit('request-received', info)
 
-    this[kInQueue].push(info, err => {
+    return new Promise((resolve, reject) => this[kInQueue].push({ info, onMessage }, err => {
       if (err) {
         const rErr = new NMSG_ERR_RESPONSE(err.message)
         rErr.stack = err.stack || rErr.stack
         this.emit('response-error', rErr, info)
+        reject(rErr)
+      } else {
+        resolve()
       }
-    })
+    }))
   }
 
   /**
@@ -269,7 +273,9 @@ class Nanomessage extends NanoresourcePromise {
 
   async _open () {
     await (this[kOpen] && this[kOpen]())
-    this[kUnsubscribe] = this._subscribe && this._subscribe(this.processIncomingMessage.bind(this))
+    const onMessage = this._onMessage.bind(this)
+    const processIncomingMessage = buf => this.processIncomingMessage(buf, onMessage)
+    this[kUnsubscribe] = this._subscribe && this._subscribe(processIncomingMessage)
   }
 
   async _close () {

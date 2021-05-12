@@ -8,11 +8,9 @@ function createFromStream (stream, options = {}) {
   const nm = new Nanomessage(Object.assign({
     subscribe (ondata) {
       stream.on('data', (data) => {
-        try {
-          ondata(data)
-        } catch (err) {
+        ondata(data).catch(err => {
           nm.emit('subscribe-error', err)
-        }
+        })
       })
     },
     send (chunk, info) {
