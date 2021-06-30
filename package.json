@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/nanomessage.js",
-    "./errors": "./src/errors.js"
+    "./errors": "./src/errors.js",
+    "./buffer-json": "./src/buffer-json.js"
   },
   "files": [
     "src"
