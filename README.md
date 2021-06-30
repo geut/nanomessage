@@ -15,14 +15,14 @@ $ npm install nanomessage
 ## <a name="usage"></a> Usage
 
 ```javascript
-const WebSocket = require('ws')
+import WebSocket from 'ws'
 
-const nanomessage = require('..')
+import { Nanomessage } from 'nanomessage'
 
 // server.js
 const server = new WebSocket.Server({ port: 3000 })
 server.on('connection', function connection (ws) {
-  nanomessage({
+  const nm = new Nanomessage({
     subscribe (ondata) {
       // Define how to read data
       ws.on('message', ondata)
@@ -36,12 +36,14 @@ server.on('connection', function connection (ws) {
       console.log(msg)
       return 'pong from Alice'
     }
-  }).open().catch(err => console.error(err))
+  })
+
+  nm.open().catch(err => console.error(err))
 })
 
 // client.js
 const ws = new WebSocket('ws://127.0.0.1:3000')
-const Bob = nanomessage({
+const Bob = new Nanomessage({
   async open() {
     if (ws.readyState === 0) {
       await new Promise(resolve => ws.once('open', resolve))
@@ -63,7 +65,7 @@ const Bob = nanomessage({
 
 ## <a name="api"></a> API
 
-#### `const nm = nanomessage(options)`
+#### `const nm = new Nanomessage(options)`
 
 Create a new nanomessage.
 

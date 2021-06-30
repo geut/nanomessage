@@ -1,10 +1,10 @@
-const { NanoresourcePromise } = require('nanoresource-promise/emitter')
-const fastq = require('fastq')
+import { NanoresourcePromise } from 'nanoresource-promise/emitter.js'
+import fastq from 'fastq'
 
-const Request = require('./request')
-const createCodec = require('./codec')
-const { NMSG_ERR_CLOSE, NMSG_ERR_NOT_OPEN, NMSG_ERR_RESPONSE } = require('./errors')
-const IdGenerator = require('./id-generator')
+import Request from './request.js'
+import createCodec from './codec.js'
+import { NMSG_ERR_CLOSE, NMSG_ERR_NOT_OPEN, NMSG_ERR_RESPONSE } from './errors.js'
+import IdGenerator from './id-generator.js'
 
 const kRequests = Symbol('nanomessage.requests')
 const kInQueue = Symbol('nanomessage.inqueue')
@@ -51,7 +51,7 @@ function outWorker (request, done) {
     .catch(err => done(err))
 }
 
-class Nanomessage extends NanoresourcePromise {
+export class Nanomessage extends NanoresourcePromise {
   /**
    * Creates an instance of Nanomessage.
    * @param {Object} [opts={}]
@@ -298,5 +298,3 @@ class Nanomessage extends NanoresourcePromise {
     if (!this.opened) throw new NMSG_ERR_NOT_OPEN()
   }
 }
-
-module.exports = Nanomessage

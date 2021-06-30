@@ -33,7 +33,7 @@ function iterate (x, decode) {
   return x
 }
 
-module.exports = {
+export default {
   _lastObj: null,
   _lastStr: null,
   _lastLength: null,

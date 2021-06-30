@@ -2,14 +2,17 @@
   "name": "nanomessage",
   "version": "9.0.0",
   "description": "Simple module that helps you to build a `request-response` abstraction on top of any other solution (e.g. streams).",
-  "main": "index.js",
+  "type": "module",
+  "exports": {
+    ".": "./src/nanomessage.js",
+    "./errors": "./src/errors.js"
+  },
   "files": [
-    "src",
-    "index.js"
+    "src"
   ],
   "scripts": {
-    "benchmark": "node benchmark.js",
-    "test": "jest --passWithNoTests",
+    "benchmark": "node tests/benchmark.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "posttest": "npm run lint",
     "lint": "xd-ns \"**/*.js\"",
     "version": "chan release --allow-yanked ${npm_package_version} && git add .",
@@ -25,12 +28,15 @@
   "devDependencies": {
     "@geut/chan": "^2.0.0",
     "@geut/xd": "^1.5.0",
-    "jest": "^25.3.0",
+    "abortcontroller-polyfill": "^1.7.3",
+    "jest": "^27.0.4",
     "nanobench": "^2.1.1",
-    "standard": "^14.3.1",
+    "standard": "^16.0.1",
     "streamx": "^2.6.4"
   },
   "jest": {
+    "testEnvironment": "jest-environment-node",
+    "transform": {},
     "testMatch": [
       "**/tests/**/*.test.js"
     ]

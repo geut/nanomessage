@@ -1,5 +1,5 @@
-const bench = require('nanobench')
-const create = require('./tests/create')
+import bench from 'nanobench'
+import create from './create.js'
 
 bench('execute 10000 requests x 2 peers', async function (b) {
   const [alice, bob] = create({

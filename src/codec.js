@@ -1,10 +1,11 @@
-const varint = require('varint')
-const BJSON = require('./buffer-json')
-const { NMSG_ERR_ENCODE, NMSG_ERR_DECODE } = require('./errors')
+import varint from 'varint'
+
+import BJSON from './buffer-json.js'
+import { NMSG_ERR_ENCODE, NMSG_ERR_DECODE } from './errors.js'
 
 const ATTR_RESPONSE = 1
 
-module.exports = function createCodec (valueEncoding = BJSON) {
+export default function createCodec (valueEncoding = BJSON) {
   return {
     encode (info) {
       try {

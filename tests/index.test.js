@@ -1,12 +1,9 @@
-const create = require('./create')
+import { jest } from '@jest/globals'
+import { AbortController } from 'abortcontroller-polyfill/dist/abortcontroller.js'
 
-const {
-  errors: {
-    NMSG_ERR_TIMEOUT,
-    NMSG_ERR_CANCEL,
-    NMSG_ERR_CLOSE
-  }
-} = require('..')
+import create from './create.js'
+
+import { NMSG_ERR_TIMEOUT, NMSG_ERR_CANCEL, NMSG_ERR_CLOSE } from '../src/errors.js'
 
 test('basic', async () => {
   expect.assertions(14)
@@ -134,10 +131,14 @@ test('detect invalid request', (done) => {
   bob.stream.write('not valid')
 })
 
-test('send ephemeral message', async (done) => {
+test('send ephemeral message', async () => {
   expect.assertions(4)
 
   let messages = 2
+  const done = {}
+  done.promise = new Promise(resolve => {
+    done.resolve = resolve
+  })
 
   const [alice, bob] = create(
     {
@@ -146,7 +147,7 @@ test('send ephemeral message', async (done) => {
         expect(data).toEqual(Buffer.from('ping from bob'))
         messages--
         if (messages === 0) {
-          done()
+          done.resolve()
         }
       }
     },
@@ -156,13 +157,16 @@ test('send ephemeral message', async (done) => {
         expect(data).toBe('ping from alice')
         messages--
         if (messages === 0) {
-          done()
+          done.resolve()
         }
       }
     }
   )
+
   await alice.send('ping from alice')
   await bob.send(Buffer.from('ping from bob'))
+
+  return done.promise
 })
 
 test('concurrency', async () => {

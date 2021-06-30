@@ -1,4 +1,4 @@
-module.exports = class IdGenerator {
+export default class IdGenerator {
   constructor (generate) {
     this._generate = generate
     this._free = []

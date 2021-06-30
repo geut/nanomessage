@@ -1,6 +1,6 @@
-const { NMSG_ERR_CANCEL, NMSG_ERR_TIMEOUT } = require('./errors')
+import { NMSG_ERR_CANCEL, NMSG_ERR_TIMEOUT } from './errors.js'
 
-class Request {
+export default class Request {
   static info (obj = {}) {
     return {
       id: obj.id,
@@ -10,8 +10,8 @@ class Request {
     }
   }
 
-  constructor (info) {
-    const { id, data, response = false, timeout, signal } = info
+  constructor (opts = {}) {
+    const { id, data, response = false, timeout, signal } = opts
 
     this.id = id
     this.data = data
@@ -84,5 +84,3 @@ class Request {
     return Request.info(this)
   }
 }
-
-module.exports = Request

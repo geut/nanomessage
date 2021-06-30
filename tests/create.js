@@ -1,6 +1,6 @@
-const { Duplex } = require('streamx')
+import { Duplex } from 'streamx'
 
-const { Nanomessage } = require('..')
+import { Nanomessage } from '../src/nanomessage.js'
 
 function createFromStream (stream, options = {}) {
   const { onSend = () => {}, onClose = () => {}, ...nmOptions } = options
@@ -41,7 +41,7 @@ function createFromStream (stream, options = {}) {
   return nm
 }
 
-module.exports = function create (aliceOpts = { onMessage () {} }, bobOpts = { onMessage () {} }) {
+export default function create (aliceOpts = { onMessage () {} }, bobOpts = { onMessage () {} }) {
   const stream1 = new Duplex({
     write (data, cb) {
       stream2.push(data)
