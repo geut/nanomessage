@@ -6,7 +6,7 @@ import create from './create.js'
 import { NMSG_ERR_TIMEOUT, NMSG_ERR_CANCEL, NMSG_ERR_CLOSE } from '../src/errors.js'
 
 test('basic', async () => {
-  expect.assertions(14)
+  expect.assertions(15)
 
   const onSend = jest.fn()
 
@@ -22,6 +22,9 @@ test('basic', async () => {
       onSend: (data, info) => {
         expect(Buffer.isBuffer(data)).toBe(true)
         expect(info.id).not.toBeUndefined()
+        if (info.args) {
+          expect(info.args.optionalInformation).toBe(true)
+        }
         onSend({ ...info, id: undefined })
       }
     },
@@ -33,11 +36,11 @@ test('basic', async () => {
     }
   )
 
-  await expect(alice.request('ping from alice')).resolves.toBe('pong from bob')
+  await expect(alice.request('ping from alice', { args: { optionalInformation: true } })).resolves.toBe('pong from bob')
   await expect(bob.request(Buffer.from('ping from bob'))).resolves.toEqual(Buffer.from('pong from alice'))
 
   expect(onSend).toHaveBeenCalledTimes(2)
-  expect(onSend).toHaveBeenNthCalledWith(1, { data: 'ping from alice', ephemeral: false, response: false })
+  expect(onSend).toHaveBeenNthCalledWith(1, { data: 'ping from alice', ephemeral: false, response: false, args: { optionalInformation: true } })
   expect(onSend).toHaveBeenNthCalledWith(2, { data: Buffer.from('ping from bob'), responseData: Buffer.from('pong from alice'), ephemeral: false, response: true })
 })
 

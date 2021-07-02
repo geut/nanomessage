@@ -161,10 +161,11 @@ export class Nanomessage extends NanoresourcePromise {
    * @param {Object} [opts]
    * @param {number} [opts.timeout]
    * @param {AbortSignal} [opts.signal]
+   * @param {Object} [opts.args]
    * @returns {Promise<*>}
    */
   request (data, opts = {}) {
-    const request = new Request({ id: this[kIdGenerator].get(), data, timeout: opts.timeout || this[kTimeout], signal: opts.signal })
+    const request = new Request({ id: this[kIdGenerator].get(), data, timeout: opts.timeout || this[kTimeout], signal: opts.signal, args: opts.args })
     const info = request.info()
 
     this[kRequests].set(request.id, request)
@@ -188,12 +189,14 @@ export class Nanomessage extends NanoresourcePromise {
    * Send a ephemeral message.
    *
    * @param {*} data
+   * @param {Object} [opts]
+   * @param {Object} [opts.args]
    * @returns {Promise}
    */
-  send (data) {
+  send (data, opts = {}) {
     return this[kFastCheckOpen]()
       .then(() => {
-        const info = Request.info({ id: 0, data })
+        const info = Request.info({ id: 0, data, args: opts.args })
         return this._send(this[kCodec].encode(info), info)
       })
   }

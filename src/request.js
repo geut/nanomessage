@@ -6,18 +6,20 @@ export default class Request {
       id: obj.id,
       data: obj.data,
       response: obj.response || false,
-      ephemeral: obj.id === 0
+      ephemeral: obj.id === 0,
+      args: obj.args
     }
   }
 
   constructor (opts = {}) {
-    const { id, data, response = false, timeout, signal } = opts
+    const { id, data, response = false, timeout, signal, args } = opts
 
     this.id = id
     this.data = data
     this.response = response
     this.finished = false
     this.timeout = timeout
+    this.args = args
     this.timer = null
 
     let _resolve, _reject
