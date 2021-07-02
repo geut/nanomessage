@@ -3,6 +3,7 @@ import { AbortController } from 'abortcontroller-polyfill/dist/abortcontroller.j
 
 import create from './create.js'
 
+import { Nanomessage } from '../src/nanomessage.js'
 import { NMSG_ERR_TIMEOUT, NMSG_ERR_CANCEL, NMSG_ERR_CLOSE } from '../src/errors.js'
 
 test('basic', async () => {
@@ -219,4 +220,32 @@ test('abort signal', async () => {
     setTimeout(() => controller.abort(), 500)
     await expect(request).rejects.toThrow(NMSG_ERR_CANCEL)
   }
+})
+
+test('processIncomingMessage', async () => {
+  const messageArgs = []
+
+  const alice = new Nanomessage({
+    send: (data, info) => {
+      messageArgs.push(info.args)
+      bob.processIncomingMessage(data, {
+        args: info.args
+      })
+    },
+    onMessage: (_, info) => {
+      messageArgs.push(info.args)
+    }
+  })
+
+  const bob = new Nanomessage({
+    send: (data) => {
+      alice.processIncomingMessage(data)
+    }
+  })
+
+  await alice.open()
+  await bob.open()
+
+  await alice.request('ping', { args: 'randomData' })
+  expect(messageArgs).toEqual(['randomData'])
 })
