@@ -161,7 +161,7 @@ export class Nanomessage extends NanoresourcePromise {
    * @param {Object} [opts]
    * @param {number} [opts.timeout]
    * @param {AbortSignal} [opts.signal]
-   * @param {Object} [opts.args]
+   * @param {*} [opts.args]
    * @returns {Promise<*>}
    */
   request (data, opts = {}) {
@@ -212,13 +212,18 @@ export class Nanomessage extends NanoresourcePromise {
 
   /**
    * @param {Buffer} buf
-   * @param {function} onMessage
+   * @param {Object} [opts]
+   * @param {function} [opts.onMessage]
+   * @param {*} [opts.args]
    * @returns {Promise}
    */
-  async processIncomingMessage (buf, onMessage = () => {}) {
+  async processIncomingMessage (buf, opts = {}) {
     if (this.closed || this.closing) return
 
+    const { onMessage = this._onMessage, args } = opts
+
     const info = Request.info(this[kCodec].decode(buf))
+    info.args = args
 
     // resolve response
     if (info.response) {
@@ -270,14 +275,14 @@ export class Nanomessage extends NanoresourcePromise {
    * @param {Object} info
    * @returns {Promise<*>}
    */
-  async _onMessage (data, info) {
-    throw new Error('_onMessage not implemented')
-  }
+  async _onMessage (data, info) {}
 
   async _open () {
     await (this[kOpen] && this[kOpen]())
-    const onMessage = this._onMessage.bind(this)
-    const processIncomingMessage = buf => this.processIncomingMessage(buf, onMessage)
+    const opts = {
+      onMessage: this._onMessage.bind(this)
+    }
+    const processIncomingMessage = buf => this.processIncomingMessage(buf, opts)
     this[kUnsubscribe] = this._subscribe && this._subscribe(processIncomingMessage)
   }
 
