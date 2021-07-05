@@ -177,6 +177,7 @@ export class Nanomessage extends NanoresourcePromise {
     this.emit('request-created', info)
 
     this[kOutQueue].push(request, (err, data) => {
+      if (err) request.reject(err)
       info.response = true
       info.responseData = data
       this.emit('request-ended', err, info)
