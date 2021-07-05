@@ -229,13 +229,14 @@ export class Nanomessage extends NanoresourcePromise {
     if (info.response) {
       const request = this[kRequests].get(info.id)
       if (request) request.resolve(info.data)
-      return
+      return new Promise(resolve => resolve(info))
     }
 
     if (info.ephemeral) {
       this.emit('request-received', info)
       return this[kFastCheckOpen]()
         .then(() => onMessage(info.data, info))
+        .then(() => info)
         .catch(err => {
           const rErr = new NMSG_ERR_RESPONSE(err.message)
           rErr.stack = err.stack || rErr.stack
@@ -254,7 +255,7 @@ export class Nanomessage extends NanoresourcePromise {
         this.emit('response-error', rErr, info)
         reject(rErr)
       } else {
-        resolve()
+        resolve(info)
       }
     }))
   }
