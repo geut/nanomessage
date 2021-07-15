@@ -1,6 +1,6 @@
 {
   "name": "nanomessage",
-  "version": "11.0.2",
+  "version": "11.0.3",
   "description": "Simple module that helps you to build a `request-response` abstraction on top of any other solution (e.g. streams).",
   "type": "module",
   "exports": {
