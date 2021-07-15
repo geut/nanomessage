@@ -165,6 +165,8 @@ export class Nanomessage extends NanoresourcePromise {
    * @returns {Promise<*>}
    */
   request (data, opts = {}) {
+    if (this.closed || this.closing) throw new NMSG_ERR_CLOSE()
+
     const request = new Request({ id: this[kIdGenerator].get(), data, timeout: opts.timeout || this[kTimeout], signal: opts.signal, args: opts.args })
     const info = request.info()
 
