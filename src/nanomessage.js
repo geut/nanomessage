@@ -1,4 +1,4 @@
-import { NanoresourcePromise } from 'nanoresource-promise/emitter.js'
+import { NanoresourcePromise } from 'nanoresource-promise/emitter'
 import fastq from 'fastq'
 
 import Request from './request.js'
@@ -68,7 +68,7 @@ export class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { send, subscribe, onMessage, open, close, timeout, valueEncoding, concurrency = 256 } = opts
+    const { send, subscribe, onMessage, open, close, timeout, valueEncoding, requestEncoding = createCodec, concurrency = 256 } = opts
 
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
@@ -77,7 +77,7 @@ export class Nanomessage extends NanoresourcePromise {
     if (close) this[kClose] = close
     this.setRequestTimeout(timeout)
 
-    this[kCodec] = createCodec(valueEncoding)
+    this[kCodec] = requestEncoding(valueEncoding)
 
     this[kInQueue] = fastq(this, inWorker, 1)
     this[kOutQueue] = fastq(this, outWorker, 1)

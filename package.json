@@ -16,25 +16,25 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
     "posttest": "npm run lint",
     "lint": "standard \"**/*.js\"",
-    "version": "chan release --allow-yanked ${npm_package_version} && git add .",
     "prepublishOnly": "npm test"
   },
   "dependencies": {
     "fastq": "^1.8.0",
     "nanocustomassert": "^1.0.0",
     "nanoerror": "^1.1.0",
-    "nanoresource-promise": "^2.0.0",
+    "nanoresource-promise": "^3.0.3",
     "varint": "^5.0.0"
   },
   "devDependencies": {
-    "@geut/chan": "^2.0.0",
     "abortcontroller-polyfill": "^1.7.3",
-    "jest": "^27.0.4",
+    "enhanced-resolve": "^5.9.2",
+    "jest": "^27.5.1",
     "nanobench": "^2.1.1",
     "standard": "^16.0.1",
     "streamx": "^2.6.4"
   },
   "jest": {
+    "resolver": "./tests/jest-resolver.cjs",
     "testEnvironment": "jest-environment-node",
     "transform": {},
     "testMatch": [

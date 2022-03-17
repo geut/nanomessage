@@ -249,3 +249,46 @@ test('processIncomingMessage', async () => {
   await alice.request('ping', { args: 'randomData' })
   expect(messageArgs).toEqual(['randomData'])
 })
+
+test('requestEncoding', async () => {
+  const onEncode = jest.fn()
+  const onDecode = jest.fn()
+
+  const requestEncoding = () => ({
+    encode (obj) {
+      onEncode()
+      return JSON.stringify(obj)
+    },
+    decode (str) {
+      onDecode()
+      return JSON.parse(str)
+    }
+  })
+
+  const alice = new Nanomessage({
+    requestEncoding,
+    send: (data, info) => {
+      bob.processIncomingMessage(data)
+    },
+    onMessage: (data, info) => {
+      expect(data).toEqual('ping')
+      return 'pong'
+    }
+  })
+
+  const bob = new Nanomessage({
+    requestEncoding,
+    send: (data) => {
+      alice.processIncomingMessage(data)
+    }
+  })
+
+  await alice.open()
+  await bob.open()
+
+  const res = await bob.request('ping')
+  expect(res).toEqual('pong')
+
+  expect(onEncode).toHaveBeenCalledTimes(2)
+  expect(onDecode).toHaveBeenCalledTimes(2)
+})
