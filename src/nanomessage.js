@@ -17,11 +17,13 @@ const kTimeout = Symbol('nanomessage.timeout')
 const kIdGenerator = Symbol('nanomessage.idgenerator')
 const kCodec = Symbol('nanomessage.codec')
 
+export const VOID_RESPONSE = Symbol('VOID_RESPONSE')
+
 function inWorker ({ info, onMessage }, done) {
   this[kFastCheckOpen]()
     .then(() => onMessage(info.data, info))
     .then(data => {
-      if (this.closed || this.closing) return done()
+      if (VOID_RESPONSE === data || this.closed || this.closing) return
 
       info.responseData = data
 
