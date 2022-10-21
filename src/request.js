@@ -1,25 +1,58 @@
-import { NMSG_ERR_CANCEL, NMSG_ERR_TIMEOUT } from './errors.js'
+import { NM_ERR_CANCEL, NM_ERR_TIMEOUT } from './errors.js'
 
+const kEmpty = Symbol('empty')
+export class RequestInfo {
+  constructor (id, response = false, error = false, context = {}, data, getData) {
+    this.id = id
+    this.response = response
+    this.ephemeral = id === 0
+    this.error = error
+    this.context = context
+    this.responseData = undefined
+    this._data = getData ? kEmpty : data
+    this._getData = getData
+  }
+
+  get data () {
+    if (this._data !== kEmpty) return this._data
+    this._data = this._getData()
+    return this._data
+  }
+
+  toJSON () {
+    return {
+      id: this.id,
+      data: this.data,
+      response: this.response,
+      ephemeral: this.ephemeral,
+      error: this.error,
+      context: this.context,
+      responseData: this.responseData
+    }
+  }
+}
 export default class Request {
   static info (obj = {}) {
-    return {
-      id: obj.id,
-      data: obj.data,
-      response: obj.response || false,
-      ephemeral: obj.id === 0,
-      args: obj.args
-    }
+    return new RequestInfo(obj.id, obj.response, obj.error, obj.context, obj.data)
   }
 
   constructor (opts = {}) {
-    const { id, data, response = false, timeout, signal, args } = opts
+    const {
+      id,
+      data,
+      response = false,
+      timeout,
+      signal,
+      context = {},
+      onCancel = () => new NM_ERR_CANCEL({ id, timeout, context })
+    } = opts
 
     this.id = id
     this.data = data
     this.response = response
     this.finished = false
     this.timeout = timeout
-    this.args = args
+    this.context = context
     this.timer = null
 
     let _resolve, _reject
@@ -28,12 +61,13 @@ export default class Request {
       _reject = reject
     })
 
-    this.promise.cancel = this.cancel.bind(this)
+    const onAbort = () => {
+      this.reject(onCancel() || new NM_ERR_CANCEL({ id, timeout }))
+    }
 
-    const onAbort = () => this.cancel()
     if (signal) {
       if (signal.aborted) {
-        process.nextTick(onAbort)
+        queueMicrotask(onAbort)
       } else {
         signal.addEventListener('abort', onAbort)
       }
@@ -63,23 +97,13 @@ export default class Request {
   start () {
     if (this.timeout) {
       this.timer = setTimeout(() => {
-        this.reject(new NMSG_ERR_TIMEOUT(this.id))
+        this.reject(new NM_ERR_TIMEOUT(this.id))
       }, this.timeout)
     }
   }
 
   onFinish (cb) {
     this._onFinish = cb
-  }
-
-  cancel (err) {
-    if (!err) {
-      err = new NMSG_ERR_CANCEL(this.id)
-    } else if (typeof err === 'string') {
-      err = new NMSG_ERR_CANCEL(this.id, err)
-    }
-
-    this.reject(err)
   }
 
   info () {

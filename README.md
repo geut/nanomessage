@@ -1,6 +1,7 @@
 # nanomessage (aka nm)
 
 [![Build Status](https://travis-ci.com/geut/nanomessage.svg?branch=master)](https://travis-ci.com/geut/nanomessage)
+[![Coverage](https://raw.githubusercontent.com/geut/nanomessage/gh-pages/badges/coverage.svg?raw=true)](https://geut.github.io/nanomessage/)
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
