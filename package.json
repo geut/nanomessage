@@ -3,50 +3,65 @@
   "version": "11.1.1",
   "description": "Simple module that helps you to build a `request-response` abstraction on top of any other solution (e.g. streams).",
   "type": "module",
+  "main": "./dist/nanomessage.cjs",
   "exports": {
-    ".": "./src/nanomessage.js",
-    "./errors": "./src/errors.js",
-    "./buffer-json": "./src/buffer-json.js"
+    ".": {
+      "require": "./dist/nanomessage.cjs",
+      "import": "./src/nanomessage.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
+    "dist",
     "src"
   ],
   "scripts": {
     "benchmark": "node tests/benchmark.js",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest --passWithNoTests",
+    "build": "tsup",
+    "test": "uvu -i create -i benchmark",
     "posttest": "npm run lint",
-    "lint": "standard \"**/*.js\"",
-    "prepublishOnly": "npm test"
+    "lint": "standard",
+    "prepublishOnly": "npm test && npm run build",
+    "coverage": "c8 uvu -i create -i benchmark",
+    "make-badge": "coverage-badges"
   },
   "dependencies": {
     "fastq": "^1.8.0",
+    "msgpackr": "^1.6.3",
     "nanocustomassert": "^1.0.0",
-    "nanoerror": "^1.1.0",
-    "nanoresource-promise": "^3.0.3",
-    "varint": "^5.0.0"
+    "nanoerror": "^1.3.0",
+    "nanoresource-promise": "^3.1.0"
   },
   "devDependencies": {
     "abortcontroller-polyfill": "^1.7.3",
-    "enhanced-resolve": "^5.9.2",
-    "jest": "^27.5.1",
-    "nanobench": "^2.1.1",
-    "standard": "^16.0.1",
-    "streamx": "^2.6.4"
-  },
-  "jest": {
-    "resolver": "./tests/jest-resolver.cjs",
-    "testEnvironment": "jest-environment-node",
-    "transform": {},
-    "testMatch": [
-      "**/tests/**/*.test.js"
-    ]
+    "c8": "^7.12.0",
+    "coverage-badges": "^1.0.7",
+    "standard": "^17.0.0",
+    "streamx": "^2.6.4",
+    "tinybench": "^2.3.1",
+    "tinyspy": "^1.0.2",
+    "tsup": "^6.3.0",
+    "uvu": "^0.5.6"
   },
   "standard": {
     "env": [
-      "jest",
       "node",
-      "browser"
+      "browser",
+      "jest"
     ]
+  },
+  "tsup": {
+    "entry": [
+      "src/nanomessage.js"
+    ],
+    "format": [
+      "cjs",
+      "iife"
+    ],
+    "globalName": "Staty",
+    "splitting": false,
+    "sourcemap": true,
+    "clean": true
   },
   "repository": {
     "type": "git",

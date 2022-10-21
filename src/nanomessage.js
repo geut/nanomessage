@@ -1,11 +1,17 @@
-import { NanoresourcePromise } from 'nanoresource-promise/emitter'
+import { NanoresourcePromise } from 'nanoresource-promise/emitter2'
 import fastq from 'fastq'
 
 import Request from './request.js'
-import createCodec from './codec.js'
-import { NMSG_ERR_CLOSE, NMSG_ERR_NOT_OPEN, NMSG_ERR_RESPONSE } from './errors.js'
+import { createCodec, createPackr } from './codec.js'
+import {
+  NM_ERR_CLOSE,
+  NM_ERR_NOT_OPEN,
+  NM_ERR_MESSAGE,
+  NM_ERR_REMOTE_RESPONSE
+} from './errors.js'
 import IdGenerator from './id-generator.js'
 
+const VOID_RESPONSE = Symbol('VOID_RESPONSE')
 const kRequests = Symbol('nanomessage.requests')
 const kInQueue = Symbol('nanomessage.inqueue')
 const kOutQueue = Symbol('nanomessage.outqueue')
@@ -17,24 +23,31 @@ const kTimeout = Symbol('nanomessage.timeout')
 const kIdGenerator = Symbol('nanomessage.idgenerator')
 const kCodec = Symbol('nanomessage.codec')
 
-export const VOID_RESPONSE = Symbol('VOID_RESPONSE')
-
 function inWorker ({ info, onMessage }, done) {
   this[kFastCheckOpen]()
     .then(() => onMessage(info.data, info))
-    .then(data => {
+    .catch(_err => {
+      if (_err.isNanoerror) return _err
+      const err = NM_ERR_REMOTE_RESPONSE.from(_err)
+      err.metadata = _err.metadata
+      return err
+    })
+    .then(async data => {
       if (VOID_RESPONSE === data || this.closed || this.closing) return
 
+      info.response = true
       info.responseData = data
+      info.error = !!(data?.isNanoerror)
 
-      return this._send(this[kCodec].encode({
-        id: info.id,
-        response: info.response,
-        data
-      }), info)
+      await this._send(this[kCodec].encode(info), info)
+
+      if (info.error) throw data
     })
     .then(() => done())
-    .catch(err => done(err))
+    .catch(err => {
+      if (err.isNanoerror) return done(err)
+      done(NM_ERR_MESSAGE.from(err))
+    })
 }
 
 function outWorker (request, done) {
@@ -53,6 +66,9 @@ function outWorker (request, done) {
     .catch(err => done(err))
 }
 
+export * from './errors.js'
+
+export { createPackr, VOID_RESPONSE }
 export class Nanomessage extends NanoresourcePromise {
   /**
    * Creates an instance of Nanomessage.
@@ -70,7 +86,7 @@ export class Nanomessage extends NanoresourcePromise {
   constructor (opts = {}) {
     super()
 
-    const { send, subscribe, onMessage, open, close, timeout, valueEncoding, requestEncoding = createCodec, concurrency = 256 } = opts
+    const { send, subscribe, onMessage, open, close, timeout, valueEncoding, concurrency = 256 } = opts
 
     if (send) this._send = send
     if (subscribe) this._subscribe = subscribe
@@ -79,7 +95,7 @@ export class Nanomessage extends NanoresourcePromise {
     if (close) this[kClose] = close
     this.setRequestTimeout(timeout)
 
-    this[kCodec] = requestEncoding(valueEncoding)
+    this[kCodec] = createCodec(valueEncoding)
 
     this[kInQueue] = fastq(this, inWorker, 1)
     this[kOutQueue] = fastq(this, outWorker, 1)
@@ -163,13 +179,14 @@ export class Nanomessage extends NanoresourcePromise {
    * @param {Object} [opts]
    * @param {number} [opts.timeout]
    * @param {AbortSignal} [opts.signal]
-   * @param {*} [opts.args]
+   * @param {function} [opts.onCancel]
+   * @param {*} [opts.context]
    * @returns {Promise<*>}
    */
-  request (data, opts = {}) {
-    if (this.closed || this.closing) throw new NMSG_ERR_CLOSE()
+  async request (data, opts = {}) {
+    if (this.closed || this.closing) throw new NM_ERR_CLOSE()
 
-    const request = new Request({ id: this[kIdGenerator].get(), data, timeout: opts.timeout || this[kTimeout], signal: opts.signal, args: opts.args })
+    const request = new Request({ id: this[kIdGenerator].get(), data, timeout: opts.timeout || this[kTimeout], signal: opts.signal, context: opts.context, onCancel: opts.onCancel })
     const info = request.info()
 
     this[kRequests].set(request.id, request)
@@ -195,13 +212,13 @@ export class Nanomessage extends NanoresourcePromise {
    *
    * @param {*} data
    * @param {Object} [opts]
-   * @param {Object} [opts.args]
+   * @param {Object} [opts.context]
    * @returns {Promise}
    */
   send (data, opts = {}) {
     return this[kFastCheckOpen]()
       .then(() => {
-        const info = Request.info({ id: 0, data, args: opts.args })
+        const info = Request.info({ id: 0, data, context: opts.context })
         return this._send(this[kCodec].encode(info), info)
       })
   }
@@ -219,46 +236,48 @@ export class Nanomessage extends NanoresourcePromise {
    * @param {Buffer} buf
    * @param {Object} [opts]
    * @param {function} [opts.onMessage]
-   * @param {*} [opts.args]
+   * @param {*} [opts.context]
    * @returns {Promise}
    */
   async processIncomingMessage (buf, opts = {}) {
     if (this.closed || this.closing) return
 
-    const { onMessage = this._onMessage, args } = opts
+    const { onMessage = this._onMessage, context } = opts
 
-    const info = Request.info(this[kCodec].decode(buf))
-    info.args = args
+    const info = this[kCodec].decode(buf, context)
 
     // resolve response
     if (info.response) {
       const request = this[kRequests].get(info.id)
-      if (request) request.resolve(info.data)
+      if (request) {
+        if (info.error) {
+          request.reject(info.data)
+        } else {
+          request.resolve(info.data)
+        }
+      }
       return new Promise(resolve => resolve(info))
     }
 
+    this.emit('message', info)
+
     if (info.ephemeral) {
-      this.emit('request-received', info)
       return this[kFastCheckOpen]()
         .then(() => onMessage(info.data, info))
         .then(() => info)
         .catch(err => {
-          const rErr = new NMSG_ERR_RESPONSE(err.message)
-          rErr.stack = err.stack || rErr.stack
-          this.emit('response-error', rErr, info)
-          throw rErr
+          if (!err.isNanoerror) {
+            err = NM_ERR_MESSAGE.from(err)
+          }
+          this.emit('message-error', err, info)
+          throw err
         })
     }
 
-    info.response = true
-    this.emit('request-received', info)
-
     return new Promise((resolve, reject) => this[kInQueue].push({ info, onMessage }, err => {
       if (err) {
-        const rErr = new NMSG_ERR_RESPONSE(err.message)
-        rErr.stack = err.stack || rErr.stack
-        this.emit('response-error', rErr, info)
-        reject(rErr)
+        this.emit('message-error', err, info)
+        reject(err)
       } else {
         resolve(info)
       }
@@ -296,7 +315,7 @@ export class Nanomessage extends NanoresourcePromise {
     if (this[kUnsubscribe]) this[kUnsubscribe]()
 
     const requestsToClose = []
-    this[kRequests].forEach(request => request.reject(new NMSG_ERR_CLOSE()))
+    this[kRequests].forEach(request => request.reject(new NM_ERR_CLOSE()))
     this[kRequests].clear()
 
     this[kInQueue] && this[kInQueue].kill()
@@ -307,8 +326,8 @@ export class Nanomessage extends NanoresourcePromise {
   }
 
   async [kFastCheckOpen] () {
-    if (this.closed || this.closing) throw new NMSG_ERR_CLOSE()
+    if (this.closed || this.closing) throw new NM_ERR_CLOSE()
     if (this.opening) return this.open()
-    if (!this.opened) throw new NMSG_ERR_NOT_OPEN()
+    if (!this.opened) throw new NM_ERR_NOT_OPEN()
   }
 }

@@ -61,3 +61,5 @@ typings/
 .next
 
 jsconfig.json
+package-lock.json
+dist

@@ -12,6 +12,10 @@ function createFromStream (stream, options = {}) {
           nm.emit('subscribe-error', err)
         })
       })
+
+      return () => {
+        nm.emit('unsubscribe')
+      }
     },
     send (chunk, info) {
       onSend(chunk, info)
