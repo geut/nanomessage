@@ -1,60 +1,82 @@
-import bench from 'nanobench'
+import { Bench } from 'tinybench'
+
 import create from './create.js'
+import { Nanomessage, createPackr } from '../src/index.js'
 
-bench('execute 10000 requests x 2 peers', async function (b) {
-  const [alice, bob] = create({
-    onMessage: () => 'pong'
-  }, {
-    onMessage: () => 'pong'
-  })
-  await alice.open()
-  await bob.open()
+const context = {
+  basic: async () => {
+    const [alice, bob] = create({
+      onMessage: () => ({ value: 'pong' })
+    }, {
+      onMessage: () => ({ value: 'pong' })
+    })
+    await alice.open()
+    await bob.open()
+    return { alice, bob }
+  },
+  sharedStructures: async () => {
+    const packr = createPackr({
+      structures: []
+    })
 
-  b.start()
+    const valueEncoding = {
+      encode: (data) => packr.pack(data),
+      decode: (data) => packr.unpack(data)
+    }
 
-  await Promise.all([
-    Promise.all([...Array(10000).keys()].map(i => {
-      return alice.request('ping')
-    })),
-    Promise.all([...Array(10000).keys()].map(i => {
-      return bob.request('ping')
-    }))
-  ])
+    const [alice, bob] = create({
+      valueEncoding,
+      onMessage: () => ({ value: 'pong' })
+    }, {
+      valueEncoding,
+      onMessage: () => ({ value: 'pong' })
+    })
+    await alice.open()
+    await bob.open()
+    return { alice, bob }
+  }
+}
 
-  b.end()
+const bench = new Bench({
+  time: 0,
+  iterations: 10_000,
+  setup: async (task) => {
+    if (task.name.includes('sharedStructures')) {
+      task.context = await context.sharedStructures()
+    } else {
+      task.context = await context.basic()
+    }
+  }
 })
 
-bench('execute 10000 ephemeral messages x 2 peers', async function (b) {
-  let aliceTotal = 0
-  let bobTotal = 0
-  let done = null
-  const waitFor = new Promise(resolve => {
-    done = resolve
+bench
+  .add('execute 10000 requests x 2 peers', async function () {
+    const { alice } = this.context
+    const res = await alice.request({ value: 'ping' })
+    if (res.value !== 'pong') throw new Error('wrong')
   })
-  const [alice, bob] = create({
-    onMessage () {
-      aliceTotal++
-      if (aliceTotal === 10000 && bobTotal === 10000) done()
-    }
-  }, {
-    onMessage () {
-      bobTotal++
-      if (aliceTotal === 10000 && bobTotal === 10000) done()
-    }
+  .add('execute 10000 ephemeral messages x 2 peers', async function () {
+    const { alice, bob } = this.context
+    await alice.send('test')
+    await Nanomessage.once(bob, 'message')
   })
-  await alice.open()
-  await bob.open()
+  .add('execute 10000 requests x 2 peers using sharedStructures', async function () {
+    const { alice } = this.context
+    const res = await alice.request({ value: 'ping' })
+    if (res.value !== 'pong') throw new Error('wrong')
+  })
 
-  b.start()
+await bench.run()
 
-  await Promise.all([
-    Promise.all([...Array(10000).keys()].map(i => {
-      return alice.send('test')
-    })),
-    Promise.all([...Array(10000).keys()].map(i => {
-      return bob.send('test')
-    }))
-  ])
-  await waitFor
-  b.end()
-})
+console.table(
+  bench.tasks.map(({ name, result }) => (result
+    ? ({
+        'Task Name': name,
+        'ops/sec': parseInt(result.hz, 10),
+        'Total Time (ms)': Math.round(result.totalTime),
+        'Average Time (ns)': Math.round(result.mean * 1000 * 1000),
+        Margin: `\xb1${result.rme.toFixed(2)}%`,
+        Samples: result.samples.length
+      })
+    : null))
+)

@@ -1,6 +1,6 @@
 import { Duplex } from 'streamx'
 
-import { Nanomessage } from '../src/nanomessage.js'
+import { Nanomessage } from '../src/index.js'
 
 function createFromStream (stream, options = {}) {
   const { onSend = () => {}, onClose = () => {}, ...nmOptions } = options
@@ -12,6 +12,10 @@ function createFromStream (stream, options = {}) {
           nm.emit('subscribe-error', err)
         })
       })
+
+      return () => {
+        nm.emit('unsubscribe')
+      }
     },
     send (chunk, info) {
       onSend(chunk, info)

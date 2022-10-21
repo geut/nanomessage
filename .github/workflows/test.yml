@@ -1,0 +1,33 @@
+name: Tests
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - name: Install dependencies
+        run: npm install
+      - name: Run tests
+        run: npm test
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - run: npm install
+      - run: npm run coverage
+      - run: npm run make-badge
+      - name: Publish coverage report to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: coverage

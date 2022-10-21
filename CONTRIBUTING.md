@@ -27,7 +27,7 @@ $ git remote add upstream git://github.com/geut/nanomessage.git
 Create a feature branch and start hacking:
 
 ```bash
-$ git checkout -b my-feature-branch -t origin/master
+$ git checkout -b my-feature-branch -t origin/main
 ```
 
 ### Step 3: Test

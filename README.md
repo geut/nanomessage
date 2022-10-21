@@ -1,6 +1,7 @@
 # nanomessage (aka nm)
 
-[![Build Status](https://travis-ci.com/geut/nanomessage.svg?branch=master)](https://travis-ci.com/geut/nanomessage)
+![Test Status](https://github.com/geut/nanomessage/actions/workflows/test.yml/badge.svg)
+[![Coverage](https://raw.githubusercontent.com/geut/nanomessage/gh-pages/badges/coverage.svg?raw=true)](https://geut.github.io/nanomessage/)
 [![JavaScript Style Guide](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
 [![standard-readme compliant](https://img.shields.io/badge/readme%20style-standard-brightgreen.svg?style=flat-square)](https://github.com/RichardLitt/standard-readme)
 
@@ -78,7 +79,7 @@ Options include:
 - `close: () => Promise`: Defines a function to run after the nanomessage instance was close.
 - `timeout: null`: Time to wait for the response of a request. Disabled by default.
 - `concurrency: { incoming: 256, outgoing: 256 }`: Defines how many requests do you want to run (outgoing) and process (incoming) in concurrent.
-- `valueEncoding: buffer-json`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage.
+- `valueEncoding: msgpackr`: Defines a [compatible codec](https://github.com/mafintosh/codecs) to encode/decode messages in nanomessage. By default use: [msgpackr](https://github.com/kriszyp/msgpackr)
 
 `info` is an object with:
 
@@ -171,7 +172,7 @@ Defines a request handler. It will override the old handler.
 
 ## <a name="contribute"></a> Contributing
 
-:busts_in_silhouette: Ideas and contributions to the project are welcome. You must follow this [guideline](https://github.com/geut/nanomessage/blob/master/CONTRIBUTING.md).
+:busts_in_silhouette: Ideas and contributions to the project are welcome. You must follow this [guideline](https://github.com/geut/nanomessage/blob/main/CONTRIBUTING.md).
 
 ## License
 

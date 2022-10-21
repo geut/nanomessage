@@ -1,44 +1,77 @@
-import varint from 'varint'
+import { Packr } from 'msgpackr'
 
-import BJSON from './buffer-json.js'
-import { NMSG_ERR_ENCODE, NMSG_ERR_DECODE } from './errors.js'
+import { RequestInfo } from './request.js'
+import {
+  encodeError,
+  decodeError,
+  NM_ERR_ENCODE,
+  NM_ERR_DECODE
+} from './errors.js'
 
 const ATTR_RESPONSE = 1
+const ATTR_ERROR = 1 << 1
 
-export default function createCodec (valueEncoding = BJSON) {
+export const createPackr = (opts = {}) => {
+  return new Packr({
+    useRecords: true,
+    ...opts
+  })
+}
+
+const staticPackr = createPackr({
+  structures: [
+    ['id', 'header', 'data'],
+    ['code', 'unformatMessage', 'args', 'metadata']
+  ]
+})
+
+const dynamicPackr = createPackr()
+const defaultValueEncoding = {
+  encode: (data) => dynamicPackr.pack(data),
+  decode: (data) => dynamicPackr.unpack(data)
+}
+
+export function createCodec (valueEncoding = defaultValueEncoding) {
   return {
     encode (info) {
       try {
-        let header = info.id << 1
+        let header = 0
         if (info.response) header = header | ATTR_RESPONSE
-        const dataLength = valueEncoding.encodingLength(info.data)
-        const buf = Buffer.allocUnsafe(varint.encodingLength(header) + varint.encodingLength(dataLength) + dataLength)
-        let offset = 0
-        varint.encode(header, buf, offset)
-        offset += varint.encode.bytes
-        varint.encode(dataLength, buf, offset)
-        offset += varint.encode.bytes
-        valueEncoding.encode(info.data, buf, offset)
+        if (info.error) header = header | ATTR_ERROR
+
+        let data = info.response ? info.responseData : info.data
+        data = info.error ? encodeError(data) : data
+        const buf = staticPackr.pack({
+          id: info.id,
+          header,
+          data: info.error ? staticPackr.pack(data) : valueEncoding.encode(data)
+        })
         return buf
       } catch (err) {
-        throw new NMSG_ERR_ENCODE(err.message)
+        throw NM_ERR_ENCODE.from(err)
       }
     },
 
-    decode (buf) {
+    decode (buf, context) {
       try {
-        const request = {}
-        let offset = 0
-        const header = varint.decode(buf, offset)
-        offset += varint.decode.bytes
-        const dataLength = varint.decode(buf, offset)
-        offset += varint.decode.bytes
-        request.data = valueEncoding.decode(buf, offset, offset + dataLength)
-        request.response = !!(header & ATTR_RESPONSE)
-        request.id = header >> 1
-        return request
+        const { id, header, data } = staticPackr.unpack(buf)
+
+        const response = !!(header & ATTR_RESPONSE)
+        const error = !!(header & ATTR_ERROR)
+
+        return new RequestInfo(
+          id,
+          response,
+          error,
+          context,
+          null,
+          () => {
+            if (error) return decodeError(staticPackr.unpack(data))
+            return valueEncoding.decode(data)
+          }
+        )
       } catch (err) {
-        throw new NMSG_ERR_DECODE(err.message)
+        throw NM_ERR_DECODE.from(err)
       }
     }
   }
