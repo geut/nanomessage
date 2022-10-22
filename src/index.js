@@ -269,14 +269,14 @@ export class Nanomessage extends NanoresourcePromise {
           if (!err.isNanoerror) {
             err = NM_ERR_MESSAGE.from(err)
           }
-          this.emit('message-error', err, info)
+          this.emit('error-message', err, info)
           throw err
         })
     }
 
     return new Promise((resolve, reject) => this[kInQueue].push({ info, onMessage }, err => {
       if (err) {
-        this.emit('message-error', err, info)
+        this.emit('error-message', err, info)
         reject(err)
       } else {
         resolve(info)

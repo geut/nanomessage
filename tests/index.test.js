@@ -65,8 +65,8 @@ test('basic', async () => {
     }
   )
 
-  alice.on('message-error', onError)
-  bob.on('message-error', onError)
+  alice.on('error-message', onError)
+  bob.on('error-message', onError)
 
   assert.equal(await alice.request('ping from alice', { context: { optionalInformation: true } }), 'pong from bob')
   assert.equal(await bob.request(Buffer.from('ping from bob')), Buffer.from('pong from alice'))
@@ -223,8 +223,8 @@ test('send ephemeral message', async () => {
     }
   )
 
-  alice.on('message-error', onError)
-  bob.on('message-error', onError)
+  alice.on('error-message', onError)
+  bob.on('error-message', onError)
 
   await Promise.all([
     alice.send('ping from alice'),
@@ -396,7 +396,7 @@ test('create a request over a closed resource', async () => {
 test('error-message', async () => {
   const [alice, bob] = create({ onMessage: () => { throw new Error('oh no') } })
 
-  const result = Nanomessage.once(alice, 'message-error')
+  const result = Nanomessage.once(alice, 'error-message')
   await bob.send('test')
   const [error] = await result
   assert.is(error.code, NM_ERR_MESSAGE.code)
@@ -407,7 +407,7 @@ test('nanoerror error-message', async () => {
   const Err = createError('ERR', 'oh no')
   const [alice, bob] = create({ onMessage: () => { throw new Err() } })
 
-  const result = Nanomessage.once(alice, 'message-error')
+  const result = Nanomessage.once(alice, 'error-message')
   await bob.send('test')
   const [error] = await result
   assert.instance(error, Err)
@@ -422,7 +422,7 @@ test('send-error', async () => {
     }
   })
 
-  const result = Nanomessage.once(alice, 'message-error')
+  const result = Nanomessage.once(alice, 'error-message')
   await assertThrow(bob.request('test', { timeout: 100 }), NM_ERR_TIMEOUT)
   const [error] = await result
   assert.is(error.code, NM_ERR_MESSAGE.code)
