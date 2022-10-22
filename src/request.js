@@ -44,7 +44,7 @@ export default class Request {
       timeout,
       signal,
       context = {},
-      onCancel = () => new NM_ERR_CANCEL({ id, timeout, context })
+      onCancel = (aborted = false) => new NM_ERR_CANCEL({ id, timeout, aborted, context })
     } = opts
 
     this.id = id
@@ -62,7 +62,7 @@ export default class Request {
     })
 
     const onAbort = () => {
-      this.reject(onCancel() || new NM_ERR_CANCEL({ id, timeout }))
+      this.reject(onCancel(true) || new NM_ERR_CANCEL({ id, timeout, aborted: true }))
     }
 
     if (signal) {
