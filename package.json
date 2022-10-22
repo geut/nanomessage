@@ -46,8 +46,7 @@
   "standard": {
     "env": [
       "node",
-      "browser",
-      "jest"
+      "browser"
     ]
   },
   "tsup": {
