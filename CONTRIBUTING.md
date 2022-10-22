@@ -32,7 +32,7 @@ $ git checkout -b my-feature-branch -t origin/main
 
 ### Step 3: Test
 
-Bug fixes and features **should come with tests**. We use [jest](https://jestjs.io/) to do that.
+Bug fixes and features **should come with tests**. We use [uvu](https://github.com/lukeed/uvu) to do that.
 
 ```bash
 $ npm test
